@@ -31,7 +31,7 @@ def _pull_impl(rctx):
     digest = rctx.attr.digest
     if not have_valid_digest and rctx.attr.unsafe_allow_tag_without_digest:
         # Do an extra roundtrip to learn the digest from the tag
-        learned_digest = _learn_digest_from_tag(rctx, tag = rctx.attr.tag, downloader = rctx.attr.downloader, sources = sources)
+        learned_digest = _learn_digest_from_tag(rctx, tag = rctx.attr.tag, downloader = rctx.attr.downloader, sources = sources, env = rctx.attr.env)
         if learned_digest:
             digest = learned_digest
             have_valid_digest = True
@@ -49,6 +49,7 @@ def _pull_impl(rctx):
             rctx,
             tool_path = tool_path,
             reference = reference,
+            env = rctx.attr.env,
         )
 
     manifest_kwargs = dict(
@@ -56,7 +57,7 @@ def _pull_impl(rctx):
     )
     if rctx.attr.registry == "docker.io":
         print("Specified docker.io as registry. Did you mean \"index.docker.io\"?")  # buildifier: disable=print
-    root_blob_info = _download_manifest_rctx(rctx, downloader = rctx.attr.downloader, reference = reference, **manifest_kwargs)
+    root_blob_info = _download_manifest_rctx(rctx, downloader = rctx.attr.downloader, reference = reference, env = rctx.attr.env, **manifest_kwargs)
     data = {root_blob_info.digest: root_blob_info.data}
     root_blob = json.decode(root_blob_info.data)
     media_type = get_media_type(root_blob)
@@ -86,7 +87,7 @@ def _pull_impl(rctx):
         if not manifest_index.get("mediaType") in [MEDIA_TYPE_MANIFEST, DOCKER_MANIFEST_V2]:
             continue
         if is_index:
-            manifest_info = _download_manifest_rctx(rctx, downloader = rctx.attr.downloader, reference = manifest_index["digest"])
+            manifest_info = _download_manifest_rctx(rctx, downloader = rctx.attr.downloader, reference = manifest_index["digest"], env = rctx.attr.env)
             data[manifest_info.digest] = manifest_info.data
 
             # Extract platform from index manifest entry
@@ -99,7 +100,7 @@ def _pull_impl(rctx):
         else:
             manifest_info = root_blob_info
         manifest = json.decode(manifest_info.data)
-        config_info = _download_blob(rctx, downloader = rctx.attr.downloader, digest = manifest["config"]["digest"], sources = sources)
+        config_info = _download_blob(rctx, downloader = rctx.attr.downloader, digest = manifest["config"]["digest"], sources = sources, env = rctx.attr.env)
         data[config_info.digest] = config_info.data
 
         # Extract platform from config if not already found
@@ -122,7 +123,7 @@ def _pull_impl(rctx):
     if rctx.attr.layer_handling == "eager":
         files.update({
             layer.digest: "//:{}".format(layer.path)
-            for layer in _download_layers(rctx, downloader = rctx.attr.downloader, digests = sets.to_list(layer_digests), sources = sources)
+            for layer in _download_layers(rctx, downloader = rctx.attr.downloader, digests = sets.to_list(layer_digests), sources = sources, env = rctx.attr.env)
         })
     elif rctx.attr.layer_handling == "lazy":
         files.update({
@@ -329,6 +330,18 @@ through other means (e.g., content-based tags).
 
 When enabled, the rule will resolve the tag to a digest at fetch time and use that
 digest, but will not fail if no digest is explicitly provided.""",
+        ),
+        "env": attr.string_dict(
+            doc = """Environment variables to set when running the img tool and credential helpers.
+
+Example:
+```python
+env = {
+    "AWS_PROFILE": "production",
+    "DOCKER_CONFIG": "/path/to/config",
+}
+```
+""",
         ),
     },
 )

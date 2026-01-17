@@ -181,6 +181,7 @@ def _image_push_impl(ctx):
         "IMG_REAPI_ENDPOINT": ctx.attr._push_settings[PushSettingsInfo].remote_cache,
         "IMG_CREDENTIAL_HELPER": ctx.attr._push_settings[PushSettingsInfo].credential_helper,
     }
+    environment.update(ctx.attr.env)
     inherited_environment = [
         "IMG_REAPI_ENDPOINT",
         "IMG_CREDENTIAL_HELPER",
@@ -404,6 +405,18 @@ See [template expansion](/docs/templating.md) for available stamp variables.
 """,
             default = "auto",
             values = ["auto", "enabled", "disabled"],
+        ),
+        "env": attr.string_dict(
+            doc = """Environment variables to set when running the pusher and credential helpers.
+
+Example:
+```python
+env = {
+    "AWS_PROFILE": "production",
+    "DOCKER_CONFIG": "/path/to/config",
+}
+```
+""",
         ),
         "_push_settings": attr.label(
             default = Label("//img/private/settings:push"),

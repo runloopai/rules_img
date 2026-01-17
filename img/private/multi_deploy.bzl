@@ -155,6 +155,7 @@ def _multi_deploy_impl(ctx):
 
     # Merge environment settings from push and load
     environment = {}
+    environment.update(ctx.attr.env)
     inherited_environment = ["DOCKER_CONFIG"]
 
     push_settings = ctx.attr._push_settings[PushSettingsInfo]
@@ -282,6 +283,18 @@ Available strategies:
 """,
             default = "auto",
             values = ["auto", "eager", "lazy"],
+        ),
+        "env": attr.string_dict(
+            doc = """Environment variables to set when running the deployer and credential helpers.
+
+Example:
+```python
+env = {
+    "AWS_PROFILE": "production",
+    "DOCKER_HOST": "unix:///var/run/docker.sock",
+}
+```
+""",
         ),
         "_push_settings": attr.label(
             default = Label("//img/private/settings:push"),
