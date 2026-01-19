@@ -1,1 +1,20 @@
-[]
+[
+	{
+		"version": "v0.3.4",
+		"integrity": "sha256-W4toS8eUKhlP0Po0eh113UvvSMym6kfTnqIjaW3+apQ=",
+		"os": "linux",
+		"cpu": "amd64"
+	},
+	{
+		"version": "v0.3.4",
+		"integrity": "sha256-6nla3w2BBrrJukp/aaDN1CKbrEp5hNDy9N1g3j/84kU=",
+		"os": "linux",
+		"cpu": "arm64"
+	},
+	{
+		"version": "v0.3.4",
+		"integrity": "sha256-1wR4XMzKIt1+uhnQTxBOIhXWvLULoIPvcz0GwQXIqzE=",
+		"os": "darwin",
+		"cpu": "arm64"
+	}
+]
