@@ -2,6 +2,7 @@ package grpcheaderinterceptor
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
@@ -14,7 +15,8 @@ import (
 )
 
 type authenticatingInterceptor struct {
-	helper credential.Helper
+	helper   credential.Helper
+	userinfo *url.Userinfo
 }
 
 // unaryAddHeaders injects headers into a unary gRPC call.
@@ -24,7 +26,7 @@ func (i *authenticatingInterceptor) unaryAddHeaders(ctx context.Context, method 
 		md = metadata.New(nil)
 	}
 
-	md = addCredentialsToMD(ctx, cc.Target(), method, md, i.helper)
+	md = addCredentialsToMD(ctx, cc.Target(), method, md, i.helper, i.userinfo)
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	return invoker(ctx, method, req, reply, cc, opts...)
@@ -37,13 +39,21 @@ func (i *authenticatingInterceptor) streamAddHeaders(ctx context.Context, desc *
 		md = metadata.New(nil)
 	}
 
-	md = addCredentialsToMD(ctx, cc.Target(), method, md, i.helper)
+	md = addCredentialsToMD(ctx, cc.Target(), method, md, i.helper, i.userinfo)
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	return streamer(ctx, desc, cc, method, opts...)
 }
 
-func addCredentialsToMD(ctx context.Context, target, method string, md metadata.MD, helper credential.Helper) metadata.MD {
+func addCredentialsToMD(ctx context.Context, target, method string, md metadata.MD, helper credential.Helper, userinfo *url.Userinfo) metadata.MD {
+	if userinfo != nil {
+		password, _ := userinfo.Password()
+		creds := userinfo.Username() + ":" + password
+		encoded := base64.StdEncoding.EncodeToString([]byte(creds))
+		md.Append("authorization", "Basic "+encoded)
+		return md
+	}
+
 	hostname, ok := strings.CutPrefix(target, "dns:")
 	if !ok {
 		fmt.Fprintf(os.Stderr, "WARNING: authenticating gRPC: unknown target definition %s\n", target)
@@ -77,8 +87,8 @@ func addCredentialsToMD(ctx context.Context, target, method string, md metadata.
 	return md
 }
 
-func DialOptions(helper credential.Helper) []grpc.DialOption {
-	interceptor := &authenticatingInterceptor{helper: helper}
+func DialOptions(helper credential.Helper, userinfo *url.Userinfo) []grpc.DialOption {
+	interceptor := &authenticatingInterceptor{helper: helper, userinfo: userinfo}
 	return []grpc.DialOption{
 		grpc.WithUnaryInterceptor(interceptor.unaryAddHeaders),
 		grpc.WithStreamInterceptor(interceptor.streamAddHeaders),

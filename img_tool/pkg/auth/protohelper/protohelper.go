@@ -2,9 +2,9 @@ package protohelper
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"slices"
-	"strings"
 	"sync"
 
 	"google.golang.org/grpc"
@@ -17,24 +17,25 @@ import (
 
 func Client(uri string, helper credhelper.Helper, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts = slices.Clone(opts)
-	schemeAndRest := strings.SplitN(uri, "://", 2)
-	if len(schemeAndRest) != 2 {
-		return nil, fmt.Errorf("invalid uri for grpc: %s", uri)
+
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid uri for grpc: %s: %w", uri, err)
 	}
-	switch schemeAndRest[0] {
+
+	switch parsed.Scheme {
 	case "grpc":
-		// unencrypted grpc
 		warnUnencryptedGRPC(uri)
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	case "grpcs":
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(nil)))
 	default:
-		return nil, fmt.Errorf("unsupported scheme for grpc: %s", schemeAndRest[0])
+		return nil, fmt.Errorf("unsupported scheme for grpc: %s", parsed.Scheme)
 	}
 
-	target := fmt.Sprintf("dns:%s", schemeAndRest[1])
+	target := fmt.Sprintf("dns:%s", parsed.Host)
 
-	opts = append(opts, grpcheaderinterceptor.DialOptions(helper)...)
+	opts = append(opts, grpcheaderinterceptor.DialOptions(helper, parsed.User)...)
 
 	return grpc.NewClient(target, opts...)
 }
