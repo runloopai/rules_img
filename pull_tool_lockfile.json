@@ -1,1 +1,38 @@
-[]
+[
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-z8sMPdPLV6eQUf9wG9xktyW5eLbq0rNb0xZy43FEj2A=",
+		"os": "linux",
+		"cpu": "amd64"
+	},
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-hvqYpkfxgR8GMI0e6HKv1N9Bg+QwKBe53vEUqIh0Dkw=",
+		"os": "linux",
+		"cpu": "arm64"
+	},
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-3Piud+Lmch8Y3J+PfMPNHJ3F0xaLDl5aAo+2Az/iB7k=",
+		"os": "darwin",
+		"cpu": "amd64"
+	},
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-MiXuHuq4LTvvJggQLrbY6v3qpp7fysMknKZZwEaUGcc=",
+		"os": "darwin",
+		"cpu": "arm64"
+	},
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-j/KyX101JQBFz6UXU906EEEKUVTMRt5L8n/Y7JaMMME=",
+		"os": "windows",
+		"cpu": "amd64"
+	},
+	{
+		"version": "v0.3.3",
+		"integrity": "sha256-cStBxzEWvq8NIEfZPxLcOzcUS3BgIP9XGGB3WCBrbrc=",
+		"os": "windows",
+		"cpu": "arm64"
+	}
+]
