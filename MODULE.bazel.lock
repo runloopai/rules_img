@@ -1,5 +1,5 @@
 {
-  "lockFileVersion": 24,
+  "lockFileVersion": 26,
   "registryFileHashes": {
     "https://bcr.bazel.build/bazel_registry.json": "8a28e4aff06ee60aed2a8c281907fb8bcbf3b753c91fb5a5c57da3215d5b3497",
     "https://bcr.bazel.build/modules/abseil-cpp/20230125.1/MODULE.bazel": "89047429cb0207707b2dface14ba7f8df85273d484c2572755be4bab7ce9c3a0",
@@ -89,8 +89,8 @@
     "https://bcr.bazel.build/modules/googletest/1.17.0/source.json": "38e4454b25fc30f15439c0378e57909ab1fd0a443158aa35aec685da727cd713",
     "https://bcr.bazel.build/modules/hermetic_cc_toolchain/4.0.1/MODULE.bazel": "0809d28e562d804e478c683b06a9f3adeedccfdb42a426c2cc69e39cbc7e3bf3",
     "https://bcr.bazel.build/modules/hermetic_cc_toolchain/4.0.1/source.json": "527d73a9964cd34ceeb73a1d5e5d04d9e6238401363c783c1f3021d5b25b8a63",
-    "https://bcr.bazel.build/modules/hermetic_launcher/0.0.3/MODULE.bazel": "757a101698a76a39defeb07a2bae8fd6ea1af8a819e1734a559b71bcb118a53d",
-    "https://bcr.bazel.build/modules/hermetic_launcher/0.0.3/source.json": "4882d1d02a04973cd11a0e61812ec9c96ce3d8ce5e275a7ff7d03409bf04c456",
+    "https://bcr.bazel.build/modules/hermetic_launcher/0.0.4/MODULE.bazel": "58b9542b14acdc068c0cbfc622c76e09c0319551b537059259c12d6c7d495698",
+    "https://bcr.bazel.build/modules/hermetic_launcher/0.0.4/source.json": "4b747b10897302b3bf0c7c276124fc940ab7e4a7d1744ff76d86e86c34bc73bd",
     "https://bcr.bazel.build/modules/jq.bzl/0.1.0/MODULE.bazel": "2ce69b1af49952cd4121a9c3055faa679e748ce774c7f1fda9657f936cae902f",
     "https://bcr.bazel.build/modules/jq.bzl/0.1.0/source.json": "746bf13cac0860f091df5e4911d0c593971cd8796b5ad4e809b2f8e133eee3d5",
     "https://bcr.bazel.build/modules/jsoncpp/1.9.6/MODULE.bazel": "2f8d20d3b7d54143213c4dfc3d98225c42de7d666011528dc8fe91591e2e17b0",
@@ -242,27 +242,23 @@
       "general": {
         "bzlTransitiveDigest": "Q/NQyKFI2DljjsevKbLpWlOrT/bOsP3m/A8uvcXQb40=",
         "usagesDigest": "GTJztBtxOycRqOsHe5wlfF+8S/ib0E2h3tPBY87nd2s=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [],
         "generatedRepoSpecs": {
           "bazel_starlib_git_toolchains": {
             "repoRuleId": "@@cgrindel_bazel_starlib+//tools/git:local_git.bzl%local_git",
             "attributes": {}
           }
-        },
-        "recordedRepoMappingEntries": []
+        }
       }
     },
     "@@pybind11_bazel+//:internal_configure.bzl%internal_configure_extension": {
       "general": {
-        "bzlTransitiveDigest": "KZmG+HXFo6h6+eo0EHaCTECvOyY2l/VFoUYsOr0Phhk=",
+        "bzlTransitiveDigest": "06cynZ1bCvvy8zHPrrDlXq+Z68xmjctHpfFxi+zEpJY=",
         "usagesDigest": "D1r3lfzMuUBFxgG8V6o0bQTLMk3GkaGOaPzw53wrwyw=",
-        "recordedFileInputs": {
-          "@@pybind11_bazel+//MODULE.bazel": "e6f4c20442eaa7c90d7190d8dc539d0ab422f95c65a57cc59562170c58ae3d34"
-        },
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [
+          "REPO_MAPPING:pybind11_bazel+,bazel_tools bazel_tools",
+          "FILE:@@pybind11_bazel+//MODULE.bazel e6f4c20442eaa7c90d7190d8dc539d0ab422f95c65a57cc59562170c58ae3d34"
+        ],
         "generatedRepoSpecs": {
           "pybind11": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_archive",
@@ -274,23 +270,17 @@
               ]
             }
           }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "pybind11_bazel+",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
+        }
       }
     },
     "@@rules_bazel_integration_test+//:extensions.bzl%bazel_binaries": {
       "general": {
         "bzlTransitiveDigest": "XC9nqZ31LIbq8N7cEK+rYa2iXNQLcJ3cyGWw+zPZlc0=",
-        "usagesDigest": "Xr2mWrVlrPsLZZdMNGhmrynL6HM1mHWT4SQgRy17luU=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "usagesDigest": "ktWQcce6BfLe29m9rVP4V5tKlHaF79rmM3qZCefFYVk=",
+        "recordedInputs": [
+          "REPO_MAPPING:rules_bazel_integration_test+,bazel_skylib bazel_skylib+",
+          "REPO_MAPPING:rules_bazel_integration_test+,cgrindel_bazel_starlib cgrindel_bazel_starlib+"
+        ],
         "generatedRepoSpecs": {
           "bazel_binaries_bazelisk": {
             "repoRuleId": "@@rules_bazel_integration_test+//bazel_integration_test/private:bazel_binaries.bzl%bazelisk_binary",
@@ -312,10 +302,10 @@
               "bazelisk": "@bazel_binaries_bazelisk//:bazelisk"
             }
           },
-          "build_bazel_bazel_9_0_0rc3": {
+          "build_bazel_bazel_9_0_0": {
             "repoRuleId": "@@rules_bazel_integration_test+//bazel_integration_test/private:bazel_binaries.bzl%bazel_binary",
             "attributes": {
-              "version": "9.0.0rc3",
+              "version": "9.0.0",
               "bazelisk": "@bazel_binaries_bazelisk//:bazelisk"
             }
           },
@@ -325,7 +315,7 @@
               "version_to_repo": {
                 "7.4.0": "build_bazel_bazel_7_4_0",
                 "8.4.2": "build_bazel_bazel_8_4_2",
-                "9.0.0rc3": "build_bazel_bazel_9_0_0rc3"
+                "9.0.0": "build_bazel_bazel_9_0_0"
               },
               "current_version": "7.4.0"
             }
@@ -337,33 +327,21 @@
             "bazel_binaries_bazelisk",
             "build_bazel_bazel_7_4_0",
             "build_bazel_bazel_8_4_2",
-            "build_bazel_bazel_9_0_0rc3",
+            "build_bazel_bazel_9_0_0",
             "bazel_binaries"
           ],
           "useAllRepos": "NO",
           "reproducible": false
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_bazel_integration_test+",
-            "bazel_skylib",
-            "bazel_skylib+"
-          ],
-          [
-            "rules_bazel_integration_test+",
-            "cgrindel_bazel_starlib",
-            "cgrindel_bazel_starlib+"
-          ]
-        ]
+        }
       }
     },
     "@@rules_kotlin+//src/main/starlark/core/repositories:bzlmod_setup.bzl%rules_kotlin_extensions": {
       "general": {
-        "bzlTransitiveDigest": "BcC1+HOMyQbaxCezYLAcpAFojGIgibGrmncgO+T2cCU=",
+        "bzlTransitiveDigest": "ABI1D/sbS1ovwaW/kHDoj8nnXjQ0oKU9fzmzEG4iT8o=",
         "usagesDigest": "QI2z8ZUR+mqtbwsf2fLqYdJAkPOHdOV+tF2yVAUgRzw=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [
+          "REPO_MAPPING:rules_kotlin+,bazel_tools bazel_tools"
+        ],
         "generatedRepoSpecs": {
           "com_github_jetbrains_kotlin_git": {
             "repoRuleId": "@@rules_kotlin+//src/main/starlark/core/repositories:compiler.bzl%kotlin_compiler_git_repository",
@@ -411,23 +389,31 @@
               ]
             }
           }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_kotlin+",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
+        }
       }
     },
     "@@rules_python+//python/extensions:config.bzl%config": {
       "general": {
-        "bzlTransitiveDigest": "dpm2vNTZnKvXszVYIiFyYqs7GF/V1DZfMF372uGaRKo=",
+        "bzlTransitiveDigest": "2hLgIvNVTLgxus0ZuXtleBe70intCfo0cHs8qvt6cdM=",
         "usagesDigest": "ZVSXMAGpD+xzVNPuvF1IoLBkty7TROO0+akMapt1pAg=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [
+          "REPO_MAPPING:rules_python+,bazel_tools bazel_tools",
+          "REPO_MAPPING:rules_python+,pypi__build rules_python++config+pypi__build",
+          "REPO_MAPPING:rules_python+,pypi__click rules_python++config+pypi__click",
+          "REPO_MAPPING:rules_python+,pypi__colorama rules_python++config+pypi__colorama",
+          "REPO_MAPPING:rules_python+,pypi__importlib_metadata rules_python++config+pypi__importlib_metadata",
+          "REPO_MAPPING:rules_python+,pypi__installer rules_python++config+pypi__installer",
+          "REPO_MAPPING:rules_python+,pypi__more_itertools rules_python++config+pypi__more_itertools",
+          "REPO_MAPPING:rules_python+,pypi__packaging rules_python++config+pypi__packaging",
+          "REPO_MAPPING:rules_python+,pypi__pep517 rules_python++config+pypi__pep517",
+          "REPO_MAPPING:rules_python+,pypi__pip rules_python++config+pypi__pip",
+          "REPO_MAPPING:rules_python+,pypi__pip_tools rules_python++config+pypi__pip_tools",
+          "REPO_MAPPING:rules_python+,pypi__pyproject_hooks rules_python++config+pypi__pyproject_hooks",
+          "REPO_MAPPING:rules_python+,pypi__setuptools rules_python++config+pypi__setuptools",
+          "REPO_MAPPING:rules_python+,pypi__tomli rules_python++config+pypi__tomli",
+          "REPO_MAPPING:rules_python+,pypi__wheel rules_python++config+pypi__wheel",
+          "REPO_MAPPING:rules_python+,pypi__zipp rules_python++config+pypi__zipp"
+        ],
         "generatedRepoSpecs": {
           "rules_python_internal": {
             "repoRuleId": "@@rules_python+//python/private:internal_config_repo.bzl%internal_config_repo",
@@ -571,98 +557,17 @@
               "build_file_content": "package(default_visibility = [\"//visibility:public\"])\n\nload(\"@rules_python//python:py_library.bzl\", \"py_library\")\n\npy_library(\n    name = \"lib\",\n    srcs = glob([\"**/*.py\"]),\n    data = glob([\"**/*\"], exclude=[\n        # These entries include those put into user-installed dependencies by\n        # data_exclude to avoid non-determinism.\n        \"**/*.py\",\n        \"**/*.pyc\",\n        \"**/*.pyc.*\",  # During pyc creation, temp files named *.pyc.NNN are created\n        \"**/*.dist-info/RECORD\",\n        \"BUILD\",\n        \"WORKSPACE\",\n    ]),\n    # This makes this directory a top-level in the python import\n    # search path for anything that depends on this.\n    imports = [\".\"],\n)\n"
             }
           }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_python+",
-            "bazel_tools",
-            "bazel_tools"
-          ],
-          [
-            "rules_python+",
-            "pypi__build",
-            "rules_python++config+pypi__build"
-          ],
-          [
-            "rules_python+",
-            "pypi__click",
-            "rules_python++config+pypi__click"
-          ],
-          [
-            "rules_python+",
-            "pypi__colorama",
-            "rules_python++config+pypi__colorama"
-          ],
-          [
-            "rules_python+",
-            "pypi__importlib_metadata",
-            "rules_python++config+pypi__importlib_metadata"
-          ],
-          [
-            "rules_python+",
-            "pypi__installer",
-            "rules_python++config+pypi__installer"
-          ],
-          [
-            "rules_python+",
-            "pypi__more_itertools",
-            "rules_python++config+pypi__more_itertools"
-          ],
-          [
-            "rules_python+",
-            "pypi__packaging",
-            "rules_python++config+pypi__packaging"
-          ],
-          [
-            "rules_python+",
-            "pypi__pep517",
-            "rules_python++config+pypi__pep517"
-          ],
-          [
-            "rules_python+",
-            "pypi__pip",
-            "rules_python++config+pypi__pip"
-          ],
-          [
-            "rules_python+",
-            "pypi__pip_tools",
-            "rules_python++config+pypi__pip_tools"
-          ],
-          [
-            "rules_python+",
-            "pypi__pyproject_hooks",
-            "rules_python++config+pypi__pyproject_hooks"
-          ],
-          [
-            "rules_python+",
-            "pypi__setuptools",
-            "rules_python++config+pypi__setuptools"
-          ],
-          [
-            "rules_python+",
-            "pypi__tomli",
-            "rules_python++config+pypi__tomli"
-          ],
-          [
-            "rules_python+",
-            "pypi__wheel",
-            "rules_python++config+pypi__wheel"
-          ],
-          [
-            "rules_python+",
-            "pypi__zipp",
-            "rules_python++config+pypi__zipp"
-          ]
-        ]
+        }
       }
     },
     "@@rules_python+//python/uv:uv.bzl%uv": {
       "general": {
-        "bzlTransitiveDigest": "zyNsrbgVKwpA0B3zI84imAfuC424VSzYNPgjr/HJy5M=",
+        "bzlTransitiveDigest": "ijW9KS7qsIY+yBVvJ+Nr1mzwQox09j13DnE3iIwaeTM=",
         "usagesDigest": "H8dQoNZcoqP+Mu0tHZTi4KHATzvNkM5ePuEqoQdklIU=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [
+          "REPO_MAPPING:rules_python+,bazel_tools bazel_tools",
+          "REPO_MAPPING:rules_python+,platforms platforms"
+        ],
         "generatedRepoSpecs": {
           "uv": {
             "repoRuleId": "@@rules_python+//python/uv/private:uv_toolchains_repo.bzl%uv_toolchains_repo",
@@ -682,28 +587,14 @@
               "toolchain_target_settings": {}
             }
           }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "rules_python+",
-            "bazel_tools",
-            "bazel_tools"
-          ],
-          [
-            "rules_python+",
-            "platforms",
-            "platforms"
-          ]
-        ]
+        }
       }
     },
     "@@tar.bzl+//tar:extensions.bzl%toolchains": {
       "general": {
         "bzlTransitiveDigest": "/2afh6fPjq/rcyE/jztQDK3ierehmFFngfvmqyRv72M=",
         "usagesDigest": "maF8qsAIqeH1ey8pxP0gNZbvJt34kLZvTFeQ0ntrJVA=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
+        "recordedInputs": [],
         "generatedRepoSpecs": {
           "bsd_tar_toolchains": {
             "repoRuleId": "@@tar.bzl+//tar/toolchain:toolchain.bzl%tar_toolchains_repo",
@@ -747,8 +638,7 @@
               "platform": "windows_arm64"
             }
           }
-        },
-        "recordedRepoMappingEntries": []
+        }
       }
     }
   },
