@@ -54,7 +54,13 @@ _MANIFEST_ACCEPT_HEADERS = {
     ]),
 }
 
-def learn_digest_from_tag(rctx, *, tag, downloader, sources):
+def _merged_env(rctx, env, credential_helper = None, docker_config_path = None):
+    """Merge caller-supplied environment variables on top of the auto-detected auth environment."""
+    merged = dict(auth_environment(rctx, credential_helper = credential_helper, docker_config_path = docker_config_path))
+    merged.update(env)
+    return merged
+
+def learn_digest_from_tag(rctx, *, tag, downloader, sources, env = {}):
     """Learn the digest of an image from its tag by downloading manifest headers.
 
     Args:
@@ -62,6 +68,7 @@ def learn_digest_from_tag(rctx, *, tag, downloader, sources):
         tag: The tag to resolve.
         downloader: "img_tool" or "bazel".
         sources: Sources dict mapping repositories to registries.
+        env: Environment variables to set when running the img tool.
 
     Returns:
         The resolved digest as a string (e.g., "sha256:abc123...") or None if resolution failed.
@@ -106,7 +113,7 @@ def learn_digest_from_tag(rctx, *, tag, downloader, sources):
             "--source={}".format(source)
             for source in sources_list
         ]
-        result = rctx.execute(args, environment = auth_environment(rctx))
+        result = rctx.execute(args, environment = _merged_env(rctx, env))
         if result.return_code != 0:
             # Failed to get digest
             fail("Failed to learn digest from tag {}: {}".format(tag, result.stderr))
@@ -141,7 +148,7 @@ def _check_existing_blob(rctx, digest, wait_and_read = True):
         waiter = None,
     )
 
-def download_blob(rctx, *, downloader, digest, sources, wait_and_read = True, output = None, **kwargs):
+def download_blob(rctx, *, downloader, digest, sources, wait_and_read = True, output = None, env = {}, **kwargs):
     """Download a blob from a container registry using the specified downloader.
 
     Args:
@@ -152,6 +159,7 @@ def download_blob(rctx, *, downloader, digest, sources, wait_and_read = True, ou
         wait_and_read: If True, wait for the download to complete and read the data.
                        If False, return a waiter that can be used to wait for the download.
         output: Optional output path for the downloaded blob. If not specified, defaults to "blobs/sha256/<sha256>".
+        env: Environment variables to set when running the img tool.
         **kwargs: Additional arguments.
 
     Returns:
@@ -205,7 +213,7 @@ def download_blob(rctx, *, downloader, digest, sources, wait_and_read = True, ou
             "--source={}".format(source)
             for source in sources_list
         ]
-        result = rctx.execute(args, environment = auth_environment(rctx))
+        result = rctx.execute(args, environment = _merged_env(rctx, env))
         if result.return_code != 0:
             fail("Failed to download blob: {}{}".format(result.stdout, result.stderr))
     else:
@@ -240,13 +248,14 @@ def download_blob_from_sources(rctx, *, downloader, digest, wait_and_read = True
         **kwargs
     )
 
-def download_manifest_rctx(rctx, *, downloader, reference, **kwargs):
+def download_manifest_rctx(rctx, *, downloader, reference, env = {}, **kwargs):
     """Download a manifest from a container registry (without support for multi-source).
 
     Args:
         rctx: Repository context with 'repository', 'registry', and 'registries' attributes.
         downloader: "img_tool" or "bazel".
         reference: The manifest reference to download.
+        env: Environment variables to set when running the img tool.
         **kwargs: Additional arguments.
 
     Returns:
@@ -275,6 +284,7 @@ def download_manifest_rctx(rctx, *, downloader, reference, **kwargs):
         sha256 = sha256,
         have_valid_digest = have_valid_digest,
         sources = sources,
+        env = env,
         **kwargs
     )
 
@@ -312,7 +322,7 @@ def download_manifest_from_sources(rctx, *, downloader, reference, **kwargs):
         **kwargs
     )
 
-def download_manifest(ctx, *, downloader, reference, sha256, have_valid_digest, sources, credential_helper = None, docker_config_path = None, **kwargs):
+def download_manifest(ctx, *, downloader, reference, sha256, have_valid_digest, sources, credential_helper = None, docker_config_path = None, env = {}, **kwargs):
     """Download a manifest from a container registry using Bazel's downloader or img tool.
 
     Args:
@@ -324,6 +334,7 @@ def download_manifest(ctx, *, downloader, reference, sha256, have_valid_digest, 
         sources: Sources dict mapping repositories to registries.
         credential_helper: Optional credential helper path to pass to the img tool.
         docker_config_path: Optional Docker-compatible auth config path to pass to the img tool.
+        env: Environment variables to set when running the img tool.
         **kwargs: Additional arguments.
 
     Returns:
@@ -348,6 +359,7 @@ def download_manifest(ctx, *, downloader, reference, sha256, have_valid_digest, 
             sources = sources,
             credential_helper = credential_helper,
             docker_config_path = docker_config_path,
+            env = env,
         )
 
     if not have_valid_digest:
@@ -407,7 +419,7 @@ def download_manifest_bazel(rctx, *, reference, sha256, have_valid_digest, sourc
         waiter = None,
     )
 
-def download_manifest_img_tool(rctx, *, reference, sha256, have_valid_digest, sources, credential_helper = None, docker_config_path = None):
+def download_manifest_img_tool(rctx, *, reference, sha256, have_valid_digest, sources, credential_helper = None, docker_config_path = None, env = {}):
     """Download a manifest from a container registry using img tool.
 
     Args:
@@ -418,6 +430,7 @@ def download_manifest_img_tool(rctx, *, reference, sha256, have_valid_digest, so
         sources: Sources dict mapping repositories to registries.
         credential_helper: Optional credential helper path to pass to the img tool.
         docker_config_path: Optional Docker-compatible auth config path to pass to the img tool.
+        env: Environment variables to set when running the img tool.
 
     Returns:
         A struct containing digest, path, and data of the downloaded manifest.
@@ -447,8 +460,9 @@ def download_manifest_img_tool(rctx, *, reference, sha256, have_valid_digest, so
 
     result = rctx.execute(
         args,
-        environment = auth_environment(
+        environment = _merged_env(
             rctx,
+            env,
             credential_helper = credential_helper,
             docker_config_path = docker_config_path,
         ),
@@ -462,7 +476,7 @@ def download_manifest_img_tool(rctx, *, reference, sha256, have_valid_digest, so
         waiter = None,
     )
 
-def download_layers(rctx, downloader, digests, sources):
+def download_layers(rctx, downloader, digests, sources, env = {}):
     """Download all layers from a manifest.
 
     Args:
@@ -470,26 +484,28 @@ def download_layers(rctx, downloader, digests, sources):
         downloader: "img_tool" or "bazel".
         digests: A list of layer digests to download.
         sources: Sources dict mapping repositories to registries.
+        env: Environment variables to set when running the img tool.
 
     Returns:
         A list of structs containing digest, path, and data of the downloaded layers.
     """
     downloaded_layers = []
     for digest in digests:
-        layer_info = download_blob(rctx, downloader = downloader, digest = digest, sources = sources, wait_and_read = False)
+        layer_info = download_blob(rctx, downloader = downloader, digest = digest, sources = sources, wait_and_read = False, env = env)
         downloaded_layers.append(layer_info)
     for layer in downloaded_layers:
         if layer.waiter != None:
             layer.waiter.wait()
     return [downloaded_layer for downloaded_layer in downloaded_layers]
 
-def download_with_tool(rctx, *, tool_path, reference):
+def download_with_tool(rctx, *, tool_path, reference, env = {}):
     """Download an image using the img tool.
 
     Args:
         rctx: Repository context.
         tool_path: The path to the img tool to use for downloading.
         reference: The image reference to download.
+        env: Environment variables to set when running the img tool.
 
     Returns:
         A struct containing manifest and layers of the downloaded image.
@@ -502,6 +518,6 @@ def download_with_tool(rctx, *, tool_path, reference):
         "--repository=" + rctx.attr.repository,
         "--layer-handling=" + rctx.attr.layer_handling,
     ] + ["--registry=" + r for r in registries]
-    result = rctx.execute(args, environment = auth_environment(rctx), quiet = False)
+    result = rctx.execute(args, environment = _merged_env(rctx, env), quiet = False)
     if result.return_code != 0:
         fail("img tool failed with exit code {} and message {}".format(result.return_code, result.stderr))

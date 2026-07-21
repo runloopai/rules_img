@@ -178,6 +178,8 @@ def _multi_deploy_impl(ctx):
     if docker_config_path:
         environment["REGISTRY_AUTH_FILE"] = docker_config_path
 
+    environment.update(ctx.attr.env)
+
     return [
         DefaultInfo(
             files = depset([deployer]),
@@ -281,6 +283,18 @@ Available strategies:
 """,
             default = "auto",
             values = ["auto", "eager", "lazy"],
+        ),
+        "env": attr.string_dict(
+            doc = """Environment variables to set when running the deployer and credential helpers.
+
+Example:
+```python
+env = {
+    "AWS_PROFILE": "production",
+    "DOCKER_HOST": "unix:///var/run/docker.sock",
+}
+```
+""",
         ),
         "_push_settings": attr.label(
             default = Label("//img/private/settings:push"),
