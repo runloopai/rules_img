@@ -169,7 +169,10 @@ def _prebuilt_img_tool_collection_for_module(ctx, mod):
             collections[from_file.collection]["tools"][(tool["os"], tool["cpu"])] = "%s_%s_%s" % (from_file.collection, tool["os"], tool["cpu"])
     for download in mod.tags.download:
         name = "%s_%s_%s" % (download.collection, download.os, download.cpu)
-        requested_tools[name] = {member: getattr(download, member) for member in dir(download)}
+        # Only forward the attrs prebuilt_img_tool_repo actually accepts
+        # (_prebuilt_attrs); dir(download) also exposes "collection", which
+        # isn't one of them and made the repository_rule call fail.
+        requested_tools[name] = {member: getattr(download, member) for member in _prebuilt_attrs.keys()}
         collections[download.collection]["tools"][(download.os, download.cpu)] = "%s_%s_%s" % (download.collection, download.os, download.cpu)
     host_tool = None
     if len(mod.tags.host_tool) > 1:
