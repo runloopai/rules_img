@@ -281,6 +281,15 @@ Output groups:
 - `oci_layout`: Complete OCI layout directory with all platform blobs
 - `oci_tarball`: OCI layout packaged as a tar file for downstream use
 - `sparse_oci_layout`: Sparse OCI layout directory (without layer blobs, only layer descriptors)
+
+  `oci_layout` and `oci_tarball` require every layer blob to be present locally, which a
+  `pull()`'d base image with `layer_handling = "shallow"` (the default) does not provide.
+  Building either group for such an image normally fails with a "missing layer blobs" error.
+  To opt in anyway - e.g. for build-graph validation, or when layers are supplied by some
+  other means - pass `--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing`.
+  The resulting layout still *references* every layer (`index.json` / `manifest.json` are
+  content-addressed, so the layer list can't be trimmed) but omits the bytes of any layer
+  that wasn't available.
 """,
     attrs = {
         "manifests": attr.label_list(

@@ -37,6 +37,15 @@ type Options struct {
 	ProgressFunc      func(ctx context.Context, size int64, name string) io.Writer
 	ManifestFilter    ManifestFilter
 	OCIRefNameTagOnly bool // if true, org.opencontainers.image.ref.name is set to just the tag (OCI spec); default is full reference (compatible with skopeo/rules_oci)
+
+	// OmitBlobs lists hex digests the caller knows are unavailable (e.g. base
+	// image layers skipped by a shallow pull). They are skipped when streaming
+	// instead of failing the write. The manifest.json / index.json descriptors
+	// that reference them are left intact: manifests are content-addressed, so
+	// rewriting their layer lists would change their digest. The resulting
+	// archive is therefore not directly loadable (`docker load`, `img load`)
+	// until the omitted blobs are supplied by some other means.
+	OmitBlobs map[string]bool
 }
 
 type ManifestInfo struct {
@@ -169,13 +178,19 @@ func WriteSingleManifest(ctx context.Context, w io.Writer, manifest *v1.Manifest
 	var streamBlobs []string         // hex digests to stream from BlobSource
 
 	// Config blob
-	streamBlobs = append(streamBlobs, manifest.Config.Digest.Hex)
+	if !opts.OmitBlobs[manifest.Config.Digest.Hex] {
+		streamBlobs = append(streamBlobs, manifest.Config.Digest.Hex)
+	}
 
 	// Manifest blob (write from memory)
 	blobs[manifestDigest.Hex] = manifestData
 
-	// Layer blobs
+	// Layer blobs. Descriptors in manifest.json / index.json still list every
+	// layer (see Options.OmitBlobs) - only the blob bytes are skipped here.
 	for _, layerDesc := range manifest.Layers {
+		if opts.OmitBlobs[layerDesc.Digest.Hex] {
+			continue
+		}
 		streamBlobs = append(streamBlobs, layerDesc.Digest.Hex)
 	}
 
@@ -317,16 +332,18 @@ func WriteIndex(ctx context.Context, w io.Writer, indexData []byte, manifestInfo
 		}
 	}
 
-	// Stream config and layer blobs for included manifests
+	// Stream config and layer blobs for included manifests. Descriptors in
+	// manifest.json / index.json still list every layer (see Options.OmitBlobs)
+	// - only the blob bytes are skipped here.
 	var streamBlobs []string
 	for _, i := range included {
 		info := manifestInfos[i]
-		if !written[info.ConfigDigest] {
+		if !written[info.ConfigDigest] && !opts.OmitBlobs[info.ConfigDigest] {
 			streamBlobs = append(streamBlobs, info.ConfigDigest)
 			written[info.ConfigDigest] = true
 		}
 		for _, layerHex := range info.LayerDigests {
-			if !written[layerHex] {
+			if !written[layerHex] && !opts.OmitBlobs[layerHex] {
 				streamBlobs = append(streamBlobs, layerHex)
 				written[layerHex] = true
 			}

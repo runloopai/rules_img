@@ -29,8 +29,15 @@ func (e *MissingBlobsError) Error() string {
 		// invoked by rules_img
 		return fmt.Sprintf(
 			`Missing layer blobs %s
-"oci_layout" output group requested with shallow base image. You probably want to add the "layer_handling" attribute to the pull rule of your base image (choose "lazy" or "eager", but NOT "shallow").
-If you explicitly want to opt in to OCI image layouts with missing blobs, use the "--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing" flag.
+"oci_layout" output group requested with shallow base image.
+Materialized layer blobs are only needed by the "oci_layout" and "tarball" (docker-save)
+output groups. Everything else works fine with a shallow base image, including
+'bazel run' on an image_load target, which fetches missing layers from the registry
+at load time.
+If you need this output group anyway, either add the "layer_handling" attribute to the
+pull rule of your base image (choose "lazy" or "eager", but NOT "shallow"), or opt in to
+an OCI layout with missing blobs (referenced but not embedded) using the
+"--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing" flag.
 `,
 			strings.Join(e.MissingBlobs, ", "),
 		)

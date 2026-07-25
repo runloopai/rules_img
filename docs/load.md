@@ -93,6 +93,17 @@ Output groups:
   Alternatively, setting `daemon = "tar"` (or `--@rules_img//img/settings:load_daemon=tar`)
   produces the same format on-the-fly by streaming it to stdout at runtime.
 
+  Materializing this output group requires every layer blob to be present locally, which a
+  `pull()`'d base image with `layer_handling = "shallow"` (the default) does not provide.
+  Building this output group for such an image normally fails with a "missing layer blobs"
+  error; `bazel run` on the target itself is unaffected, since the loader fetches any missing
+  layers from the registry at load time instead. If you need the tarball anyway (e.g. to
+  validate the build graph, or because layers are supplied by some other means), opt in with
+  `--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing`. The resulting tarball
+  still *references* every layer in its `manifest.json` / `index.json` (those are
+  content-addressed, so the layer list can't be trimmed), but omits the bytes of any layer
+  that wasn't available - it is therefore not `docker load`-able on its own.
+
 Example:
 
 ```python

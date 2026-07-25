@@ -149,6 +149,70 @@ func TestWriteSingleManifest(t *testing.T) {
 	}
 }
 
+func TestWriteSingleManifestOmitBlobs(t *testing.T) {
+	manifest, manifestData, source := makeTestManifest()
+	layerDigest := manifest.Layers[0].Digest.Hex
+
+	var buf bytes.Buffer
+	opts := Options{
+		Tags:      []string{"registry.io/repo:v1.0"},
+		OCITags:   []string{"registry.io/repo:v1.0"},
+		OmitBlobs: map[string]bool{layerDigest: true},
+	}
+
+	if err := WriteSingleManifest(context.Background(), &buf, manifest, manifestData, source, opts); err != nil {
+		t.Fatalf("WriteSingleManifest with OmitBlobs failed: %v", err)
+	}
+
+	files := extractTar(t, &buf)
+
+	// manifest.json / index.json still reference the omitted layer: they are
+	// content-addressed descriptors copied from the (unmodified) v1.Manifest.
+	var dockerMfsts []dockerManifest
+	if err := json.Unmarshal(files["manifest.json"], &dockerMfsts); err != nil {
+		t.Fatalf("parsing manifest.json: %v", err)
+	}
+	found := false
+	for _, l := range dockerMfsts[0].Layers {
+		if l == "blobs/sha256/"+layerDigest {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected manifest.json to still reference omitted layer %s, got %v", layerDigest, dockerMfsts[0].Layers)
+	}
+
+	// ...but the blob bytes themselves must not be embedded.
+	if _, ok := files["blobs/sha256/"+layerDigest]; ok {
+		t.Error("omitted layer blob should not be present in the archive")
+	}
+
+	// Everything else (config, manifest) is still embedded normally.
+	if _, ok := files["blobs/sha256/"+manifest.Config.Digest.Hex]; !ok {
+		t.Error("missing config blob")
+	}
+	manifestDigest := hashBytes(manifestData)
+	if _, ok := files["blobs/sha256/"+manifestDigest.Hex]; !ok {
+		t.Error("missing manifest blob")
+	}
+}
+
+func TestWriteSingleManifestMissingBlobWithoutOmit(t *testing.T) {
+	manifest, manifestData, source := makeTestManifest()
+	// Drop the layer from the source without listing it in OmitBlobs: this
+	// must still fail loudly rather than silently degrade.
+	delete(source.blobs, manifest.Layers[0].Digest.Hex)
+
+	var buf bytes.Buffer
+	opts := Options{
+		Tags:    []string{"registry.io/repo:v1.0"},
+		OCITags: []string{"registry.io/repo:v1.0"},
+	}
+	if err := WriteSingleManifest(context.Background(), &buf, manifest, manifestData, source, opts); err == nil {
+		t.Fatal("expected an error for a missing blob that was not in OmitBlobs")
+	}
+}
+
 func TestWriteIndex(t *testing.T) {
 	manifest, manifestData, source := makeTestManifest()
 	manifestDigest := hashBytes(manifestData)
@@ -227,6 +291,118 @@ func TestWriteIndex(t *testing.T) {
 	}
 	if _, ok := files["blobs/sha256/"+manifest.Layers[0].Digest.Hex]; !ok {
 		t.Error("missing layer blob")
+	}
+}
+
+func TestWriteIndexOmitBlobs(t *testing.T) {
+	manifest, manifestData, source := makeTestManifest()
+	manifestDigest := hashBytes(manifestData)
+	layerDigest := manifest.Layers[0].Digest.Hex
+
+	indexContent := v1.IndexManifest{
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.oci.image.index.v1+json",
+		Manifests: []v1.Descriptor{
+			{
+				MediaType: types.OCIManifestSchema1,
+				Digest:    manifestDigest,
+				Size:      int64(len(manifestData)),
+				Platform:  &v1.Platform{OS: "linux", Architecture: "amd64"},
+			},
+		},
+	}
+	indexData, _ := json.Marshal(indexContent)
+
+	manifestInfos := []ManifestInfo{
+		{
+			ManifestData: manifestData,
+			ConfigDigest: manifest.Config.Digest.Hex,
+			LayerDigests: []string{layerDigest},
+			MediaType:    types.OCIManifestSchema1,
+		},
+	}
+
+	var buf bytes.Buffer
+	opts := Options{
+		Tags:      []string{"registry.io/repo:latest"},
+		OCITags:   []string{"registry.io/repo:latest"},
+		OmitBlobs: map[string]bool{layerDigest: true},
+	}
+
+	if err := WriteIndex(context.Background(), &buf, indexData, manifestInfos, source, opts); err != nil {
+		t.Fatalf("WriteIndex with OmitBlobs failed: %v", err)
+	}
+
+	files := extractTar(t, &buf)
+
+	// manifest.json still references the omitted layer (content-addressed
+	// descriptors are left intact)...
+	var dockerMfsts []dockerManifest
+	if err := json.Unmarshal(files["manifest.json"], &dockerMfsts); err != nil {
+		t.Fatalf("parsing manifest.json: %v", err)
+	}
+	found := false
+	for _, l := range dockerMfsts[0].Layers {
+		if l == "blobs/sha256/"+layerDigest {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected manifest.json to still reference omitted layer %s, got %v", layerDigest, dockerMfsts[0].Layers)
+	}
+
+	// ...but the blob bytes are not embedded.
+	if _, ok := files["blobs/sha256/"+layerDigest]; ok {
+		t.Error("omitted layer blob should not be present in the archive")
+	}
+
+	// The index, manifest, and config blobs are still embedded normally.
+	indexDigest := hashBytes(indexData)
+	if _, ok := files["blobs/sha256/"+indexDigest.Hex]; !ok {
+		t.Error("missing index blob")
+	}
+	if _, ok := files["blobs/sha256/"+manifestDigest.Hex]; !ok {
+		t.Error("missing manifest blob")
+	}
+	if _, ok := files["blobs/sha256/"+manifest.Config.Digest.Hex]; !ok {
+		t.Error("missing config blob")
+	}
+}
+
+func TestWriteIndexMissingBlobWithoutOmit(t *testing.T) {
+	manifest, manifestData, source := makeTestManifest()
+	manifestDigest := hashBytes(manifestData)
+	// Drop the layer from the source without listing it in OmitBlobs: this
+	// must still fail loudly rather than silently degrade.
+	delete(source.blobs, manifest.Layers[0].Digest.Hex)
+
+	indexContent := v1.IndexManifest{
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.oci.image.index.v1+json",
+		Manifests: []v1.Descriptor{
+			{
+				MediaType: types.OCIManifestSchema1,
+				Digest:    manifestDigest,
+				Size:      int64(len(manifestData)),
+				Platform:  &v1.Platform{OS: "linux", Architecture: "amd64"},
+			},
+		},
+	}
+	indexData, _ := json.Marshal(indexContent)
+
+	manifestInfos := []ManifestInfo{
+		{
+			ManifestData: manifestData,
+			ConfigDigest: manifest.Config.Digest.Hex,
+			LayerDigests: []string{manifest.Layers[0].Digest.Hex},
+			MediaType:    types.OCIManifestSchema1,
+		},
+	}
+
+	var buf bytes.Buffer
+	opts := Options{Tags: []string{"registry.io/repo:latest"}, OCITags: []string{"registry.io/repo:latest"}}
+	if err := WriteIndex(context.Background(), &buf, indexData, manifestInfos, source, opts); err == nil {
+		t.Fatal("expected an error for a missing blob that was not in OmitBlobs")
 	}
 }
 

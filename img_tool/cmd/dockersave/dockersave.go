@@ -30,8 +30,15 @@ func (e *MissingBlobsError) Error() string {
 		// invoked by rules_img
 		return fmt.Sprintf(
 			`Missing layer blobs %s
-"tarball" output group requested with shallow base image. You probably want to add the "layer_handling" attribute to the pull rule of your base image (choose "lazy" or "eager", but NOT "shallow").
-If you explicitly want to opt in to Docker save tarballs with missing blobs, use the "--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing" flag.
+"tarball" output group requested with shallow base image.
+Materialized layer blobs are only needed by the "tarball" (docker-save) and "oci_layout"
+output groups. Everything else works fine with a shallow base image, including
+'bazel run' on an image_load target, which fetches missing layers from the registry
+at load time.
+If you need this output group anyway, either add the "layer_handling" attribute to the
+pull rule of your base image (choose "lazy" or "eager", but NOT "shallow"), or opt in to
+a tarball with missing blobs (referenced but not embedded) using the
+"--@rules_img//img/settings:shallow_oci_layout=i_know_what_i_am_doing" flag.
 `,
 			strings.Join(e.MissingBlobs, ", "),
 		)
@@ -260,10 +267,13 @@ func assembleDockerSave(manifestPath, configPath, outputPath, format string, lay
 
 	// Check for missing blobs
 	var missingBlobs []string
+	omitBlobs := make(map[string]bool)
 	for _, layerDesc := range manifest.Layers {
 		if blobPath, ok := layerBlobsByDigest[layerDesc.Digest.Hex]; ok {
 			blobs[layerDesc.Digest.Hex] = blobPath
-		} else if !allowMissingBlobs {
+		} else if allowMissingBlobs {
+			omitBlobs[layerDesc.Digest.Hex] = true
+		} else {
 			missingBlobs = append(missingBlobs, layerDesc.Digest.String())
 		}
 	}
@@ -271,14 +281,30 @@ func assembleDockerSave(manifestPath, configPath, outputPath, format string, lay
 	if len(missingBlobs) > 0 {
 		return &MissingBlobsError{MissingBlobs: missingBlobs}
 	}
+	warnAboutOmittedBlobs(omitBlobs)
 
 	if format == "tar" {
-		return assembleDockerSaveTar(outputPath, &manifest, manifestData, blobs, repoTags, ociTags, ociRefNameTagOnly)
+		return assembleDockerSaveTar(outputPath, &manifest, manifestData, blobs, omitBlobs, repoTags, ociTags, ociRefNameTagOnly)
 	}
 	return assembleDockerSaveDirectory(outputPath, &manifest, manifestData, blobs, repoTags, ociTags, useSymlinks, ociRefNameTagOnly)
 }
 
-func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestData []byte, blobs blobMap, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
+// warnAboutOmittedBlobs logs which layer blobs were skipped due to
+// --allow-missing-blobs. The resulting artifact still references them in its
+// manifest, so this should not be silent.
+func warnAboutOmittedBlobs(omitBlobs map[string]bool) {
+	if len(omitBlobs) == 0 {
+		return
+	}
+	digests := make([]string, 0, len(omitBlobs))
+	for d := range omitBlobs {
+		digests = append(digests, d)
+	}
+	sort.Strings(digests)
+	fmt.Fprintf(os.Stderr, "warning: omitting %d unavailable layer blob(s) referenced but not embedded in the output: %s\n", len(digests), strings.Join(digests, ", "))
+}
+
+func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestData []byte, blobs blobMap, omitBlobs map[string]bool, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
 	var w *os.File
 	var err error
 	if outputPath == "-" {
@@ -296,6 +322,7 @@ func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestDat
 		Tags:              repoTags,
 		OCITags:           ociTags,
 		OCIRefNameTagOnly: ociRefNameTagOnly,
+		OmitBlobs:         omitBlobs,
 	}
 	return ocitar.WriteSingleManifest(context.Background(), w, manifest, manifestData, source, opts)
 }
@@ -425,6 +452,7 @@ func assembleDockerSaveWithIndex(indexPath, outputPath, format string, manifestP
 
 	blobs := make(blobMap)
 	var allMissingBlobs []string
+	omitBlobs := make(map[string]bool)
 	var manifestInfos []ocitar.ManifestInfo
 
 	for i := range manifestPaths {
@@ -456,7 +484,9 @@ func assembleDockerSaveWithIndex(indexPath, outputPath, format string, manifestP
 		for _, layerDesc := range manifest.Layers {
 			if blobPath, ok := layerBlobsByDigest[layerDesc.Digest.Hex]; ok {
 				blobs[layerDesc.Digest.Hex] = blobPath
-			} else if !allowMissingBlobs {
+			} else if allowMissingBlobs {
+				omitBlobs[layerDesc.Digest.Hex] = true
+			} else {
 				allMissingBlobs = append(allMissingBlobs, layerDesc.Digest.String())
 			}
 			info.LayerDigests = append(info.LayerDigests, layerDesc.Digest.Hex)
@@ -468,6 +498,7 @@ func assembleDockerSaveWithIndex(indexPath, outputPath, format string, manifestP
 	if len(allMissingBlobs) > 0 {
 		return &MissingBlobsError{MissingBlobs: allMissingBlobs}
 	}
+	warnAboutOmittedBlobs(omitBlobs)
 
 	// Read the pre-built index
 	indexData, err := os.ReadFile(indexPath)
@@ -478,12 +509,12 @@ func assembleDockerSaveWithIndex(indexPath, outputPath, format string, manifestP
 	blobs[indexDigest.Hex] = indexPath
 
 	if format == "tar" {
-		return assembleDockerSaveWithIndexTar(outputPath, indexData, manifestInfos, blobs, repoTags, ociTags, ociRefNameTagOnly)
+		return assembleDockerSaveWithIndexTar(outputPath, indexData, manifestInfos, blobs, omitBlobs, repoTags, ociTags, ociRefNameTagOnly)
 	}
 	return assembleDockerSaveWithIndexDirectory(outputPath, indexData, indexDigest, manifestInfos, blobs, repoTags, ociTags, useSymlinks, ociRefNameTagOnly)
 }
 
-func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifestInfos []ocitar.ManifestInfo, blobs blobMap, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
+func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifestInfos []ocitar.ManifestInfo, blobs blobMap, omitBlobs map[string]bool, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
 	var w *os.File
 	var err error
 	if outputPath == "-" {
@@ -501,6 +532,7 @@ func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifes
 		Tags:              repoTags,
 		OCITags:           ociTags,
 		OCIRefNameTagOnly: ociRefNameTagOnly,
+		OmitBlobs:         omitBlobs,
 	}
 	return ocitar.WriteIndex(context.Background(), w, indexData, manifestInfos, source, opts)
 }
