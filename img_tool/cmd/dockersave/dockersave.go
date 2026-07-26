@@ -307,6 +307,7 @@ func warnAboutOmittedBlobs(omitBlobs map[string]bool) {
 func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestData []byte, blobs blobMap, omitBlobs map[string]bool, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
 	var w *os.File
 	var err error
+	closeFile := false
 	if outputPath == "-" {
 		w = os.Stdout
 	} else {
@@ -314,7 +315,7 @@ func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestDat
 		if err != nil {
 			return fmt.Errorf("creating output file: %w", err)
 		}
-		defer w.Close()
+		closeFile = true
 	}
 
 	source := &fileBlobSource{blobs: blobs}
@@ -324,7 +325,13 @@ func assembleDockerSaveTar(outputPath string, manifest *v1.Manifest, manifestDat
 		OCIRefNameTagOnly: ociRefNameTagOnly,
 		OmitBlobs:         omitBlobs,
 	}
-	return ocitar.WriteSingleManifest(context.Background(), w, manifest, manifestData, source, opts)
+	writeErr := ocitar.WriteSingleManifest(context.Background(), w, manifest, manifestData, source, opts)
+	if closeFile {
+		if cerr := w.Close(); cerr != nil && writeErr == nil {
+			writeErr = fmt.Errorf("closing output file: %w", cerr)
+		}
+	}
+	return writeErr
 }
 
 func assembleDockerSaveDirectory(outputPath string, manifest *v1.Manifest, manifestData []byte, blobs blobMap, repoTags, ociTags []string, useSymlinks, ociRefNameTagOnly bool) error {
@@ -517,6 +524,7 @@ func assembleDockerSaveWithIndex(indexPath, outputPath, format string, manifestP
 func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifestInfos []ocitar.ManifestInfo, blobs blobMap, omitBlobs map[string]bool, repoTags, ociTags []string, ociRefNameTagOnly bool) error {
 	var w *os.File
 	var err error
+	closeFile := false
 	if outputPath == "-" {
 		w = os.Stdout
 	} else {
@@ -524,7 +532,7 @@ func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifes
 		if err != nil {
 			return fmt.Errorf("creating output file: %w", err)
 		}
-		defer w.Close()
+		closeFile = true
 	}
 
 	source := &fileBlobSource{blobs: blobs}
@@ -534,7 +542,13 @@ func assembleDockerSaveWithIndexTar(outputPath string, indexData []byte, manifes
 		OCIRefNameTagOnly: ociRefNameTagOnly,
 		OmitBlobs:         omitBlobs,
 	}
-	return ocitar.WriteIndex(context.Background(), w, indexData, manifestInfos, source, opts)
+	writeErr := ocitar.WriteIndex(context.Background(), w, indexData, manifestInfos, source, opts)
+	if closeFile {
+		if cerr := w.Close(); cerr != nil && writeErr == nil {
+			writeErr = fmt.Errorf("closing output file: %w", cerr)
+		}
+	}
+	return writeErr
 }
 
 func assembleDockerSaveWithIndexDirectory(outputPath string, indexData []byte, indexDigest v1.Hash, manifestInfos []ocitar.ManifestInfo, blobs blobMap, repoTags, ociTags []string, useSymlinks, ociRefNameTagOnly bool) error {

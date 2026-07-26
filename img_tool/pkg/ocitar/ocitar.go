@@ -45,6 +45,10 @@ type Options struct {
 	// rewriting their layer lists would change their digest. The resulting
 	// archive is therefore not directly loadable (`docker load`, `img load`)
 	// until the omitted blobs are supplied by some other means.
+	//
+	// Callers must never include a config digest here: unlike layers, a
+	// missing config blob makes the archive unusable by every consumer, not
+	// just `docker load`.
 	OmitBlobs map[string]bool
 }
 
@@ -125,9 +129,13 @@ func DescriptorsForTags(ociTags []string, mediaType types.MediaType, data []byte
 	return descs
 }
 
-func WriteSingleManifest(ctx context.Context, w io.Writer, manifest *v1.Manifest, manifestData []byte, blobSource BlobSource, opts Options) error {
+func WriteSingleManifest(ctx context.Context, w io.Writer, manifest *v1.Manifest, manifestData []byte, blobSource BlobSource, opts Options) (err error) {
 	tw := tar.NewWriter(w)
-	defer tw.Close()
+	defer func() {
+		if cerr := tw.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing tar writer: %w", cerr)
+		}
+	}()
 
 	manifestDigest := hashBytes(manifestData)
 
@@ -231,9 +239,13 @@ func WriteSingleManifest(ctx context.Context, w io.Writer, manifest *v1.Manifest
 	return nil
 }
 
-func WriteIndex(ctx context.Context, w io.Writer, indexData []byte, manifestInfos []ManifestInfo, blobSource BlobSource, opts Options) error {
+func WriteIndex(ctx context.Context, w io.Writer, indexData []byte, manifestInfos []ManifestInfo, blobSource BlobSource, opts Options) (err error) {
 	tw := tar.NewWriter(w)
-	defer tw.Close()
+	defer func() {
+		if cerr := tw.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing tar writer: %w", cerr)
+		}
+	}()
 
 	// Parse index to get manifest descriptors for ManifestFilter
 	var parsedIndex v1.IndexManifest
