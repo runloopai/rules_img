@@ -1,6 +1,6 @@
 [
-	{"version":"v0.3.17-jasonc.1","integrity":"sha256-0J+2wpQUW2YvCkW6qNPqbSDsqi6Z8bBotQakz4fMG+0=","os":"linux","cpu":"amd64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
-	{"version":"v0.3.17-jasonc.1","integrity":"sha256-j0rX2x3To9Nw5Fz+tii/jXF1rLBOEQQ6aUJdnwRnArU=","os":"linux","cpu":"arm64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
-	{"version":"v0.3.17-jasonc.1","integrity":"sha256-vRc4SwAlEeL+JDRyZ2sLOsNFjg04WPIrekey6Abw/ro=","os":"darwin","cpu":"amd64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
-	{"version":"v0.3.17-jasonc.1","integrity":"sha256-w296MrYOzZp0yO56fkNQwWyGO3VITPpqbUH0Q8eb0uQ=","os":"darwin","cpu":"arm64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]}
+	{"version":"v0.3.17-jasonc.1","integrity":"sha256-67IZ7Lsw+pc0WamGLVTHIZrXZTbbrTStN4gGqtGxRwo=","os":"linux","cpu":"amd64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
+	{"version":"v0.3.17-jasonc.1","integrity":"sha256-tAJMLuuBXV6rVn2roJ9cL2jfmFROBrLEo6B/W//S6J4=","os":"linux","cpu":"arm64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
+	{"version":"v0.3.17-jasonc.1","integrity":"sha256-F9B3zt3oGWWLHvd6GY/ztuXNWS3EFhPxu8vEUBE+5YQ=","os":"darwin","cpu":"amd64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]},
+	{"version":"v0.3.17-jasonc.1","integrity":"sha256-0meuUvPDw01Fos+Xh4MRL3BRTPuS3CtCAZsNQyJZk9Y=","os":"darwin","cpu":"arm64","url_templates":["https://github.com/runloopai/rules_img/releases/download/{version}/img_{os}_{cpu}{dot}{extension}"]}
 ]
