@@ -1,1 +1,9 @@
-[]
+[
+	{"version":"v0.3.18","integrity":"sha256-Cz3iNLm8Ugv2Azhz7edvJTjcBIEzW7aSK0IwIfiAOU4=","os":"linux","cpu":"amd64"},
+	{"version":"v0.3.18","integrity":"sha256-st4aL/fE59x7v/4WSGOi3XmhCSfezQ0UDIXhv8sM2gk=","os":"linux","cpu":"arm64"},
+	{"version":"v0.3.18","integrity":"sha256-54tLVy6Fzc7b6Hil6DOrZdZivNn1VLbJ26w26a6tdB8=","os":"linux","cpu":"s390x"},
+	{"version":"v0.3.18","integrity":"sha256-d6amCfvKXyS2ewudKFn63Re4mj2szV0J4q82zzUrbTc=","os":"darwin","cpu":"amd64"},
+	{"version":"v0.3.18","integrity":"sha256-Px2Oqa4f2Cd6F0pCBtOdWKLpp0tRnhs/KJ1S9htr3Ls=","os":"darwin","cpu":"arm64"},
+	{"version":"v0.3.18","integrity":"sha256-VPWgEmpr+d0Si8ifUO0HotFo8FjBupjyDCh89usoQGE=","os":"windows","cpu":"amd64"},
+	{"version":"v0.3.18","integrity":"sha256-1AlKQb2YWqE2dRXRjv7GGfs+5AJWpuBNyF3sSEFmYPo=","os":"windows","cpu":"arm64"}
+]
