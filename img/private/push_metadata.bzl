@@ -481,7 +481,8 @@ def build_time_push_actions(
         pull_gateway,
         insecure,
         pull_info,
-        exec_requirements):
+        exec_requirements,
+        env):
     """Create the PushImage validation actions for one push operation.
 
     Emits one action per blob (mnemonic PushImage) that pushes a single blob to
@@ -527,6 +528,7 @@ def build_time_push_actions(
       pull_info: PullInfo used when computing the manifest push metadata.
       exec_requirements: dict forwarded as the execution_requirements of every
         emitted PushImage action (e.g. {"requires-network": "1"}).
+      env: custom environment variables for every emitted PushImage action.
 
     Returns:
       List of Files to place in the `_validation` output group: the per-layer and
@@ -541,6 +543,7 @@ def build_time_push_actions(
     # (shallow base layers), so all three gateway env vars are set; the img tool
     # resolves push/pull precedence at runtime.
     registry_env = _registry_env(gateway, push_gateway, pull_gateway, insecure)
+    registry_env.update(env)
     prefix = "{}.push_at_build_time.{}".format(ctx.label.name, push_idx)
 
     if manifest_info != None:
@@ -591,6 +594,7 @@ def build_time_push_actions(
                 executable = tool,
                 arguments = [args],
                 mnemonic = "PushImage",
+                use_default_shell_env = True,
                 execution_requirements = exec_requirements,
                 progress_message = "Pushing layer blob %s (manifest %d, layer %d)" % (ctx.label, mi, li),
             )
@@ -622,6 +626,7 @@ def build_time_push_actions(
                 executable = tool,
                 arguments = [ztoc_args],
                 mnemonic = "PushImage",
+                use_default_shell_env = True,
                 execution_requirements = exec_requirements,
                 progress_message = "Pushing ztoc blob %s (soci manifest %d, layer %d)" % (ctx.label, mi, li),
             )
@@ -655,6 +660,7 @@ def build_time_push_actions(
             executable = tool,
             arguments = [config_args],
             mnemonic = "PushImage",
+            use_default_shell_env = True,
             execution_requirements = exec_requirements,
             progress_message = "Pushing config blob %s (manifest %d)" % (ctx.label, mi),
         )
@@ -707,6 +713,7 @@ def build_time_push_actions(
         executable = tool,
         arguments = [args],
         mnemonic = "PushImage",
+        use_default_shell_env = True,
         execution_requirements = exec_requirements,
         progress_message = "Pushing config and manifest(s) %s" % ctx.label,
     )
@@ -857,6 +864,7 @@ def process_deploy_specs(
                 insecure = push_config.insecure,
                 pull_info = pull_info,
                 exec_requirements = push_config.push_at_build_time_exec_properties,
+                env = {},
             ))
 
     for load_idx, deployment in enumerate(load_specs):

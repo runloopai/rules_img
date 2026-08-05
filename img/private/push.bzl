@@ -191,6 +191,14 @@ def _image_push_impl(ctx):
     if docker_config_path:
         environment["REGISTRY_AUTH_FILE"] = docker_config_path
 
+    environment.update(ctx.attr.env)
+    inherited_environment = [name for name in inherited_environment if name not in ctx.attr.env]
+
+    action_env = {}
+    if docker_config_path:
+        action_env["REGISTRY_AUTH_FILE"] = docker_config_path
+    action_env.update(ctx.attr.env)
+
     direct_runfiles = [deploy_tool_info.img_deploy_exe, deploy_metadata]
     runfiles = ctx.runfiles(
         files = direct_runfiles,
@@ -222,6 +230,7 @@ def _image_push_impl(ctx):
             insecure = ctx.attr._push_settings[PushSettingsInfo].insecure,
             pull_info = ctx.attr.image[PullInfo] if PullInfo in ctx.attr.image else None,
             exec_requirements = pbt.exec_properties,
+            env = action_env,
         )
         if validation_outputs:
             output_groups["_validation"] = depset(validation_outputs)
@@ -380,6 +389,18 @@ Available options:
         _docker_config_path = attr.label(
             default = Label("//img/settings:docker_config_path"),
             providers = [BuildSettingInfo],
+        ),
+        env = attr.string_dict(
+            doc = """Environment variables to set when running the pusher and credential helpers.
+
+Example:
+```python
+env = {
+    "AWS_PROFILE": "production",
+    "DOCKER_CONFIG": "/path/to/config",
+}
+```
+""",
         ),
     ),
     executable = True,
