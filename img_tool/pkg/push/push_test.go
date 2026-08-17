@@ -2,6 +2,7 @@ package push
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/registry"
 	registryv1 "github.com/google/go-containerregistry/pkg/v1"
@@ -154,6 +156,168 @@ func TestPushAllStaysSilentWithoutProgress(t *testing.T) {
 	}
 	if got := out.String(); got != "" {
 		t.Errorf("reported progress with progress reporting off:\n%s", got)
+	}
+}
+
+func TestPushAllTreatsImmutableTagRejectionAsSuccessWhenTagAlreadyHasExpectedDigest(t *testing.T) {
+	host, transport := newTestRegistryTransport(t)
+	image, err := random.Image(256, 1)
+	if err != nil {
+		t.Fatalf("creating test image: %v", err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		t.Fatalf("digesting test image: %v", err)
+	}
+	vfs := imageVFS{}
+	vfs.add(t, image)
+
+	seed := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(transport)).
+		Build()
+	if _, err := seed.PushAll(context.Background(), pushOps(host, "test/image", digest, "latest"), "eager"); err != nil {
+		t.Fatalf("seeding immutable tag: %v", err)
+	}
+
+	immutableErr := errors.New("immutable tag push rejected")
+	recoveryTransport := &rejectTagPutTransport{
+		RoundTripper:              transport,
+		path:                      "/v2/test/image/manifests/latest",
+		err:                       immutableErr,
+		hideFirstHead:             true,
+		requiredHeadAuthorization: "Bearer recovery-token",
+	}
+	uploader := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(recoveryTransport), remote.WithAuth(&authn.Bearer{Token: "recovery-token"})).
+		Build()
+
+	tags, err := uploader.PushAll(context.Background(), pushOps(host, "test/image", digest, "latest"), "eager")
+	if err != nil {
+		t.Fatalf("PushAll() returned error after immutable tag rejection: %v", err)
+	}
+	wantTags := []string{
+		host + "/test/image@" + digest.String(),
+		host + "/test/image:latest",
+	}
+	if strings.Join(tags, ",") != strings.Join(wantTags, ",") {
+		t.Errorf("PushAll() = %q, want %q", tags, wantTags)
+	}
+	if !recoveryTransport.authenticatedHead {
+		t.Error("recovery HEAD did not include the configured authentication")
+	}
+}
+
+func TestPushAllPreservesImmutableTagRejectionWhenExistingTagHasDifferentDigest(t *testing.T) {
+	host, transport := newTestRegistryTransport(t)
+	existing, err := random.Image(256, 1)
+	if err != nil {
+		t.Fatalf("creating existing image: %v", err)
+	}
+	existingDigest, err := existing.Digest()
+	if err != nil {
+		t.Fatalf("digesting existing image: %v", err)
+	}
+	target, err := random.Image(512, 1)
+	if err != nil {
+		t.Fatalf("creating target image: %v", err)
+	}
+	targetDigest, err := target.Digest()
+	if err != nil {
+		t.Fatalf("digesting target image: %v", err)
+	}
+	vfs := imageVFS{}
+	vfs.add(t, existing)
+	vfs.add(t, target)
+
+	seed := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(transport)).
+		Build()
+	if _, err := seed.PushAll(context.Background(), pushOps(host, "test/image", existingDigest, "latest"), "eager"); err != nil {
+		t.Fatalf("seeding immutable tag: %v", err)
+	}
+
+	immutableErr := errors.New("immutable tag push rejected")
+	uploader := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(&rejectTagPutTransport{
+			RoundTripper:  transport,
+			path:          "/v2/test/image/manifests/latest",
+			err:           immutableErr,
+			hideFirstHead: true,
+		})).
+		Build()
+
+	_, err = uploader.PushAll(context.Background(), pushOps(host, "test/image", targetDigest, "latest"), "eager")
+	if !errors.Is(err, immutableErr) {
+		t.Fatalf("PushAll() error = %v, want original immutable rejection", err)
+	}
+}
+
+func TestPushAllPreservesTagPushErrorWhenVerificationFails(t *testing.T) {
+	host, transport := newTestRegistryTransport(t)
+	image, err := random.Image(256, 1)
+	if err != nil {
+		t.Fatalf("creating test image: %v", err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		t.Fatalf("digesting test image: %v", err)
+	}
+	vfs := imageVFS{}
+	vfs.add(t, image)
+
+	immutableErr := errors.New("immutable tag push rejected")
+	verificationErr := errors.New("verification authentication failed")
+	uploader := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(&rejectTagPutTransport{
+			RoundTripper:  transport,
+			path:          "/v2/test/image/manifests/latest",
+			err:           immutableErr,
+			headErr:       verificationErr,
+			hideFirstHead: true,
+		})).
+		Build()
+
+	_, err = uploader.PushAll(context.Background(), pushOps(host, "test/image", digest, "latest"), "eager")
+	if !errors.Is(err, immutableErr) {
+		t.Fatalf("PushAll() error = %v, want original immutable rejection", err)
+	}
+}
+
+func TestPushAllDoesNotReconcileDigestPushErrors(t *testing.T) {
+	host, transport := newTestRegistryTransport(t)
+	image, err := random.Image(256, 1)
+	if err != nil {
+		t.Fatalf("creating test image: %v", err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		t.Fatalf("digesting test image: %v", err)
+	}
+	vfs := imageVFS{}
+	vfs.add(t, image)
+
+	digestPushErr := errors.New("digest push rejected")
+	digestTransport := &rejectTagPutTransport{
+		RoundTripper: transport,
+		path:         "/v2/test/image/manifests/" + digest.String(),
+		err:          digestPushErr,
+	}
+	uploader := NewBuilder(vfs).
+		WithJobs(1).
+		WithRemoteOptions(remote.WithTransport(digestTransport)).
+		Build()
+
+	_, err = uploader.PushAll(context.Background(), pushOps(host, "test/image", digest, "latest"), "eager")
+	if !errors.Is(err, digestPushErr) {
+		t.Fatalf("PushAll() error = %v, want original digest push rejection", err)
+	}
+	if got, want := digestTransport.headCalls, 1; got != want {
+		t.Errorf("manifest HEAD requests = %d, want %d (the pusher preflight only)", got, want)
 	}
 }
 
@@ -354,8 +518,14 @@ func (c *stderrCapture) Reset() {
 // these tests run in don't allow binding a loopback port.
 func newTestRegistry(t *testing.T) (string, remote.Option) {
 	t.Helper()
+	host, transport := newTestRegistryTransport(t)
+	return host, remote.WithTransport(transport)
+}
+
+func newTestRegistryTransport(t *testing.T) (string, http.RoundTripper) {
+	t.Helper()
 	handler := registry.New(registry.Logger(log.New(io.Discard, "", 0)))
-	return "localhost:1234", remote.WithTransport(&handlerTransport{handler: handler})
+	return "localhost:1234", &handlerTransport{handler: handler}
 }
 
 // handlerTransport serves HTTP requests from an in-process handler.
@@ -380,4 +550,46 @@ func (t *handlerTransport) RoundTrip(request *http.Request) (*http.Response, err
 	response := recorder.Result()
 	response.Request = request
 	return response, nil
+}
+
+type rejectTagPutTransport struct {
+	http.RoundTripper
+	path                      string
+	err                       error
+	headErr                   error
+	hideFirstHead             bool
+	requiredHeadAuthorization string
+	authenticatedHead         bool
+	headCalls                 int
+}
+
+func (t *rejectTagPutTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request.URL.Path != t.path {
+		return t.RoundTripper.RoundTrip(request)
+	}
+	if request.Method == http.MethodPut {
+		return nil, t.err
+	}
+	if request.Method == http.MethodHead {
+		t.headCalls++
+		if t.hideFirstHead && t.headCalls == 1 {
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Status:     "404 Not Found",
+				Header:     make(http.Header),
+				Body:       http.NoBody,
+				Request:    request,
+			}, nil
+		}
+		if t.requiredHeadAuthorization != "" {
+			if got := request.Header.Get("Authorization"); got != t.requiredHeadAuthorization {
+				return nil, fmt.Errorf("HEAD authorization = %q, want %q", got, t.requiredHeadAuthorization)
+			}
+			t.authenticatedHead = true
+		}
+		if t.headErr != nil {
+			return nil, t.headErr
+		}
+	}
+	return t.RoundTripper.RoundTrip(request)
 }

@@ -109,6 +109,7 @@ func (u *uploader) PushAll(ctx context.Context, ops []api.IndexedPushDeployOpera
 	type pushItem struct {
 		ref      name.Reference
 		taggable remote.Taggable
+		digest   registryv1.Hash
 	}
 	var items []pushItem
 	var allTags []string
@@ -128,7 +129,7 @@ func (u *uploader) PushAll(ctx context.Context, ops []api.IndexedPushDeployOpera
 			return nil, err
 		}
 		for _, ref := range refs {
-			items = append(items, pushItem{ref: ref, taggable: taggable})
+			items = append(items, pushItem{ref: ref, taggable: taggable, digest: digest})
 			allTags = append(allTags, ref.String())
 		}
 	}
@@ -171,7 +172,7 @@ func (u *uploader) PushAll(ctx context.Context, ops []api.IndexedPushDeployOpera
 	for _, item := range items {
 		item := item
 		g.Go(func() error {
-			return pusher.Push(ctx, item.ref, item.taggable)
+			return u.push(ctx, pusher, item.ref, item.taggable, item.digest)
 		})
 	}
 
@@ -180,6 +181,24 @@ func (u *uploader) PushAll(ctx context.Context, ops []api.IndexedPushDeployOpera
 	}
 
 	return allTags, nil
+}
+
+func (u *uploader) push(ctx context.Context, pusher *remote.Pusher, ref name.Reference, taggable remote.Taggable, digest registryv1.Hash) error {
+	err := pusher.Push(ctx, ref, taggable)
+	if err == nil {
+		return nil
+	}
+	if _, ok := ref.(name.Tag); !ok {
+		return err
+	}
+
+	options := append([]remote.Option{}, u.remoteOptions...)
+	options = append(options, remote.WithContext(ctx))
+	descriptor, headErr := remote.Head(ref, options...)
+	if headErr != nil || descriptor.Digest != digest {
+		return err
+	}
+	return nil
 }
 
 // tags returns the list of tags to push for the given operation, applying any overrides and extra tags.
