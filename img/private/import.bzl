@@ -207,6 +207,18 @@ def _build_manifest_info(ctx, digest, descriptor = None, index_position = None, 
         soci_ztocs = [],
     )
 
+# Buildx adds provenance/SBOM attestations as extra index entries, marked with this
+# annotation and an "unknown/unknown" platform; their config has no diff_ids to import.
+_ATTESTATION_REFERENCE_TYPE = "vnd.docker.reference.type"
+
+def _is_platform_manifest(manifest):
+    if manifest.get("annotations", {}).get(_ATTESTATION_REFERENCE_TYPE):
+        return False
+    platform = manifest.get("platform", {})
+    os = platform.get("os", "")
+    arch = platform.get("architecture", "")
+    return bool(os) and bool(arch) and os != "unknown" and arch != "unknown"
+
 def _image_import_impl(ctx):
     root_blob = json.decode(ctx.attr.data[ctx.attr.digest])
     media_type = get_media_type(root_blob)
@@ -230,6 +242,7 @@ def _image_import_impl(ctx):
         manifests = [
             _build_manifest_info(ctx, manifest["digest"], descriptor = manifest, index_position = position, platform = manifest.get("platform"))
             for (position, manifest) in enumerate(root_blob.get("manifests", []))
+            if _is_platform_manifest(manifest)
         ]
         index_descriptor_file = ctx.actions.declare_file(ctx.attr.name + "_index_descriptor.json")
         index_descriptor = dict(
