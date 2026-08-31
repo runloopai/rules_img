@@ -34,6 +34,7 @@ import (
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/progress"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/proto/blobcache"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/push"
+	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryopts"
 )
 
@@ -356,6 +357,7 @@ func DeployWithExtras(ctx context.Context, rawRequest []byte, opts DeployOptions
 	defer registryopts.LogConcurrencySummary(os.Stderr)
 
 	var pushedTags []string
+	var selectedRegistry string
 	// groupCtx is cancelled once g.Wait returns; keep the outer ctx for work after it (registry_tag ops).
 	g, groupCtx := errgroup.WithContext(ctx)
 
@@ -389,11 +391,12 @@ func DeployWithExtras(ctx context.Context, rawRequest []byte, opts DeployOptions
 		uploader := uploadBuilder.Build()
 
 		g.Go(func() error {
-			tags, err := uploader.PushAll(groupCtx, pushOperations, req.Settings.PushStrategy)
+			tags, registry, err := uploader.PushAllWithRegistry(groupCtx, pushOperations, req.Settings.PushStrategy)
 			if err != nil {
 				return err
 			}
 			pushedTags = tags
+			selectedRegistry = registry
 			return nil
 		})
 	}
@@ -423,6 +426,10 @@ func DeployWithExtras(ctx context.Context, rawRequest []byte, opts DeployOptions
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("deploying images: %w", err)
 	}
+	effectiveRegistry := opts.OverrideRegistry
+	if selectedRegistry != "" {
+		effectiveRegistry = selectedRegistry
+	}
 
 	// Print VFS statistics to stderr
 	stats := vfs.Stats()
@@ -444,7 +451,7 @@ func DeployWithExtras(ctx context.Context, rawRequest []byte, opts DeployOptions
 			defaultSetting:     opts.DefaultSignSetting,
 			force:              opts.SignForce,
 			targetOverride:     opts.SignTargets,
-			overrideRegistry:   opts.OverrideRegistry,
+			overrideRegistry:   effectiveRegistry,
 			overrideRepository: opts.OverrideRepository,
 			pushTransport:      pushTransport,
 			jobs:               opts.Jobs,
@@ -454,7 +461,7 @@ func DeployWithExtras(ctx context.Context, rawRequest []byte, opts DeployOptions
 	}
 
 	if len(registryTagOperations) > 0 {
-		extraTagNames, err := applyRegistryTagOperations(ctx, vfs, pusher, registryTagOperations, req.Settings.PushStrategy, opts.OverrideRegistry, opts.OverrideRepository, opts.Jobs)
+		extraTagNames, err := applyRegistryTagOperations(ctx, vfs, pusher, registryTagOperations, req.Settings.PushStrategy, effectiveRegistry, opts.OverrideRepository, opts.Jobs)
 		if err != nil {
 			return err
 		}
@@ -473,6 +480,20 @@ func applyRegistryTagOperations(ctx context.Context, vfs *deployvfs.VFS, pusher 
 	if strategy == "bes" {
 		return nil, nil
 	}
+	registryList := overrideRegistry
+	if registryList == "" && len(ops) > 0 {
+		registryList = ops[0].Registry
+	}
+	if strings.Contains(registryList, ",") {
+		tags, _, err := registryfallback.Do(ctx, registryList, func(registry string) ([]string, error) {
+			return applyRegistryTagOperationsOnce(ctx, vfs, pusher, ops, registry, overrideRepository, jobs)
+		})
+		return tags, err
+	}
+	return applyRegistryTagOperationsOnce(ctx, vfs, pusher, ops, overrideRegistry, overrideRepository, jobs)
+}
+
+func applyRegistryTagOperationsOnce(ctx context.Context, vfs *deployvfs.VFS, pusher *remote.Pusher, ops []api.IndexedRegistryTagDeployOperation, overrideRegistry, overrideRepository string, jobs int) ([]string, error) {
 
 	type pushItem struct {
 		ref      name.Reference
@@ -536,6 +557,20 @@ func applyRegistryTagOperations(ctx context.Context, vfs *deployvfs.VFS, pusher 
 // manifest push cross-mounts the blobs from the staging repository. pushTransport
 // routes the uploads through the configured push gateway (if any).
 func preUploadStagingBlobs(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedPushDeployOperation, blobRepository, overrideRegistry string, jobs int, pushTransport http.RoundTripper) error {
+	registryList := overrideRegistry
+	if registryList == "" && len(ops) > 0 {
+		registryList = ops[0].Registry
+	}
+	if strings.Contains(registryList, ",") {
+		_, _, err := registryfallback.Do(ctx, registryList, func(registry string) (struct{}, error) {
+			return struct{}{}, preUploadStagingBlobsOnce(ctx, vfs, ops, blobRepository, registry, jobs, pushTransport)
+		})
+		return err
+	}
+	return preUploadStagingBlobsOnce(ctx, vfs, ops, blobRepository, overrideRegistry, jobs, pushTransport)
+}
+
+func preUploadStagingBlobsOnce(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedPushDeployOperation, blobRepository, overrideRegistry string, jobs int, pushTransport http.RoundTripper) error {
 	if jobs < 1 {
 		jobs = 1
 	}

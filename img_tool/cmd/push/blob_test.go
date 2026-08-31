@@ -122,6 +122,31 @@ func TestPushBlobUploadsToRepository(t *testing.T) {
 	}
 }
 
+func TestPushBlobFallsBackAfterAuthenticationFailure(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+	}))
+	t.Cleanup(first.Close)
+	firstURL, err := url.Parse(first.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstHost := strings.Replace(firstURL.Host, "127.0.0.1", "localhost", 1)
+	secondHost, _ := newTestRegistry(t)
+	dir := t.TempDir()
+	blobPath, desc := writeBlobFile(t, dir)
+
+	selected, err := pushBlobToRegistries(context.Background(), firstHost+","+secondHost, "myrepo", desc, blobPath, "", "", nil)
+	skipIfRestricted(t, err)
+	if selected != secondHost {
+		t.Fatalf("selected registry = %q, want %q", selected, secondHost)
+	}
+	if !blobExists(t, secondHost, "myrepo", desc.Digest) {
+		t.Errorf("blob %s not found in fallback registry", desc.Digest)
+	}
+}
+
 // TestPushBlobUploadsToStagingRepository verifies the blob-staging redirect: the
 // blob is uploaded to the staging repository, not the image's own repository.
 func TestPushBlobUploadsToStagingRepository(t *testing.T) {

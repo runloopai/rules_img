@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -19,6 +20,7 @@ import (
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/proto/blobcache"
 	blobcache_proto "github.com/bazel-contrib/rules_img/img_tool/pkg/proto/blobcache"
 	remoteexecution_proto "github.com/bazel-contrib/rules_img/img_tool/pkg/proto/remote-apis/build/bazel/remote/execution/v2"
+	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryopts"
 )
 
@@ -99,12 +101,52 @@ type uploader struct {
 }
 
 func (u *uploader) PushAll(ctx context.Context, ops []api.IndexedPushDeployOperation, strategy string) (tags []string, retErr error) {
+	tags, _, err := u.PushAllWithRegistry(ctx, ops, strategy)
+	return tags, err
+}
+
+// PushAllWithRegistry pushes all operations and also returns the selected
+// registry when a comma-separated registry list was supplied.
+func (u *uploader) PushAllWithRegistry(ctx context.Context, ops []api.IndexedPushDeployOperation, strategy string) (tags []string, selectedRegistry string, retErr error) {
 	if strategy == "bes" {
-		return nil, nil // nothing to do
+		return nil, "", nil // nothing to do
 	}
 	if err := u.strategyPreHooks(ctx, ops, strategy); err != nil {
-		return nil, err
+		return nil, "", err
 	}
+
+	registryList, hasFallbacks, err := u.registryList(ops)
+	if err != nil {
+		return nil, "", err
+	}
+	if !hasFallbacks {
+		tags, err := u.pushAllOnce(ctx, ops)
+		return tags, "", err
+	}
+	return registryfallback.Do(ctx, registryList, func(registry string) ([]string, error) {
+		attempt := *u
+		attempt.overrideRegistry = registry
+		return attempt.pushAllOnce(ctx, ops)
+	})
+}
+
+func (u *uploader) registryList(ops []api.IndexedPushDeployOperation) (string, bool, error) {
+	if strings.Contains(u.overrideRegistry, ",") {
+		return u.overrideRegistry, true, nil
+	}
+	if u.overrideRegistry != "" || len(ops) == 0 || !strings.Contains(ops[0].Registry, ",") {
+		return "", false, nil
+	}
+	registryList := ops[0].Registry
+	for _, op := range ops[1:] {
+		if op.Registry != registryList {
+			return "", false, fmt.Errorf("push operations with a registry list must use the same ordered list; got %q and %q", registryList, op.Registry)
+		}
+	}
+	return registryList, true, nil
+}
+
+func (u *uploader) pushAllOnce(ctx context.Context, ops []api.IndexedPushDeployOperation) (tags []string, retErr error) {
 
 	type pushItem struct {
 		ref      name.Reference

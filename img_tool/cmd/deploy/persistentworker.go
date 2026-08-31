@@ -21,6 +21,7 @@ import (
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/load"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/persistentworker"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/push"
+	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryopts"
 )
 
@@ -151,15 +152,19 @@ func (h *deployWorkerHandler) processRequest(ctx context.Context, req persistent
 	}
 
 	var output strings.Builder
+	effectiveRegistry := opts.overrideRegistry
 
 	pushOps, err := dm.PushOperations()
 	if err != nil {
 		return "", err
 	}
 	if len(pushOps) > 0 {
-		tags, err := h.pushOps(ctx, vfs, pushOps, dm.Settings.PushStrategy, opts)
+		tags, selectedRegistry, err := h.pushOps(ctx, vfs, pushOps, dm.Settings.PushStrategy, opts)
 		if err != nil {
 			return "", fmt.Errorf("push: %w", err)
+		}
+		if selectedRegistry != "" {
+			effectiveRegistry = selectedRegistry
 		}
 		for _, tag := range tags {
 			output.WriteString(tag)
@@ -172,7 +177,9 @@ func (h *deployWorkerHandler) processRequest(ctx context.Context, req persistent
 		return "", err
 	}
 	if len(registryTagOps) > 0 {
-		tags, err := h.registryTagOps(ctx, vfs, registryTagOps, dm.Settings.PushStrategy, opts)
+		tagOpts := *opts
+		tagOpts.overrideRegistry = effectiveRegistry
+		tags, err := h.registryTagOps(ctx, vfs, registryTagOps, dm.Settings.PushStrategy, &tagOpts)
 		if err != nil {
 			return "", fmt.Errorf("registry_tag: %w", err)
 		}
@@ -309,7 +316,7 @@ func refsOutput(refs []string) string {
 	return output.String()
 }
 
-func (h *deployWorkerHandler) pushOps(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedPushDeployOperation, strategy string, opts *workerOpts) ([]string, error) {
+func (h *deployWorkerHandler) pushOps(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedPushDeployOperation, strategy string, opts *workerOpts) ([]string, string, error) {
 	uploadBuilder := push.NewBuilder(vfs).
 		WithPusher(h.pusher).
 		WithJobs(h.jobs).
@@ -320,7 +327,7 @@ func (h *deployWorkerHandler) pushOps(ctx context.Context, vfs *deployvfs.VFS, o
 	if opts.overrideRepository != "" {
 		uploadBuilder = uploadBuilder.WithOverrideRepository(opts.overrideRepository)
 	}
-	return uploadBuilder.Build().PushAll(ctx, ops, strategy)
+	return uploadBuilder.Build().PushAllWithRegistry(ctx, ops, strategy)
 }
 
 func (h *deployWorkerHandler) registryTagOps(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedRegistryTagDeployOperation, strategy string, opts *workerOpts) ([]string, error) {
@@ -330,6 +337,22 @@ func (h *deployWorkerHandler) registryTagOps(ctx context.Context, vfs *deployvfs
 	if h.pusher == nil {
 		return nil, fmt.Errorf("no pusher available for registry_tag operations")
 	}
+	registryList := opts.overrideRegistry
+	if registryList == "" && len(ops) > 0 {
+		registryList = ops[0].Registry
+	}
+	if strings.Contains(registryList, ",") {
+		tags, _, err := registryfallback.Do(ctx, registryList, func(registry string) ([]string, error) {
+			attemptOpts := *opts
+			attemptOpts.overrideRegistry = registry
+			return h.registryTagOpsOnce(ctx, vfs, ops, &attemptOpts)
+		})
+		return tags, err
+	}
+	return h.registryTagOpsOnce(ctx, vfs, ops, opts)
+}
+
+func (h *deployWorkerHandler) registryTagOpsOnce(ctx context.Context, vfs *deployvfs.VFS, ops []api.IndexedRegistryTagDeployOperation, opts *workerOpts) ([]string, error) {
 
 	type pushItem struct {
 		ref      name.Reference

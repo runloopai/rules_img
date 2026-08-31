@@ -9,6 +9,7 @@ go_library(
         "//pkg/api",
         "//pkg/cas",
         "//pkg/compactstream",
+        "//pkg/registryfallback",
         "//pkg/registryopts",
         "@com_github_google_go_containerregistry//pkg/name",
         "@com_github_google_go_containerregistry//pkg/v1:pkg",

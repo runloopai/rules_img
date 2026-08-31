@@ -125,6 +125,9 @@ def resolve_load_destination(ctx):
     if not registry and repository:
         registry = ctx.attr._destination_registry[BuildSettingInfo].value
 
+    if "," in registry:
+        fail("image_load/image_load_spec does not support comma-separated destination registries; registry failover is push-only")
+
     if bool(registry) != bool(repository):
         fail("image_load/image_load_spec: 'registry' and 'repository' must be set together (or neither); got registry = {}, repository = {}".format(
             repr(registry),

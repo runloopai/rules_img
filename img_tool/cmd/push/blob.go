@@ -20,6 +20,7 @@ import (
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/compactstream"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/deployvfs"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/gateway"
+	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryopts"
 )
 
@@ -94,8 +95,12 @@ func blobProcess(ctx context.Context, args []string) {
 		targetRepository = blobRepository
 	}
 
+	selectedRegistry, pushErr := pushBlobToRegistries(ctx, cfg.Registry, targetRepository, desc, blobPath, compactStreamPath, casDir, []string(sources))
+	if selectedRegistry == "" {
+		selectedRegistry = cfg.Registry
+	}
 	result := BlobResult{
-		Registry:   cfg.Registry,
+		Registry:   selectedRegistry,
 		Repository: targetRepository,
 		Digest:     desc.Digest,
 		MediaType:  desc.MediaType,
@@ -107,40 +112,46 @@ func blobProcess(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 
-	pushErr := pushBlob(ctx, cfg.Registry, targetRepository, desc, blobPath, compactStreamPath, casDir, []string(sources))
 	finish(mode, outputPath, resultBytes, pushErr)
 }
 
 func pushBlob(ctx context.Context, registryStr, targetRepository string, desc api.Descriptor, blobPath, compactStreamPath, casDir string, sources []string) error {
+	_, err := pushBlobToRegistries(ctx, registryStr, targetRepository, desc, blobPath, compactStreamPath, casDir, sources)
+	return err
+}
+
+func pushBlobToRegistries(ctx context.Context, registryStr, targetRepository string, desc api.Descriptor, blobPath, compactStreamPath, casDir string, sources []string) (string, error) {
 	// Route the upload (and any shallow-source fetch) through the configured
 	// registry gateway when one is set, with the enforced auth/retry defaults.
 	pushOpts, err := registryopts.Push()
 	if err != nil {
-		return fmt.Errorf("configuring push options: %w", err)
+		return "", fmt.Errorf("configuring push options: %w", err)
 	}
 	pullTransport, err := registryopts.Transport(gateway.ModePull)
 	if err != nil {
-		return fmt.Errorf("configuring pull transport: %w", err)
-	}
-
-	repoRef, err := name.NewRepository(registryStr+"/"+targetRepository, registryopts.NameOptions()...)
-	if err != nil {
-		return fmt.Errorf("parsing target repository %s/%s: %w", registryStr, targetRepository, err)
+		return "", fmt.Errorf("configuring pull transport: %w", err)
 	}
 
 	layer, err := layerForBlob(ctx, desc, blobPath, compactStreamPath, casDir, sources, pullTransport)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	pusher, err := remote.NewPusher(pushOpts.Remote()...)
-	if err != nil {
-		return fmt.Errorf("creating pusher: %w", err)
-	}
-	if err := pusher.Upload(ctx, repoRef, layer); err != nil {
-		return fmt.Errorf("uploading blob %s to %s: %w", desc.Digest, repoRef, err)
-	}
-	return nil
+	_, selected, err := registryfallback.Do(ctx, registryStr, func(registry string) (struct{}, error) {
+		repoRef, err := name.NewRepository(registry+"/"+targetRepository, registryopts.NameOptions()...)
+		if err != nil {
+			return struct{}{}, fmt.Errorf("parsing target repository %s/%s: %w", registry, targetRepository, err)
+		}
+		pusher, err := remote.NewPusher(pushOpts.Remote()...)
+		if err != nil {
+			return struct{}{}, fmt.Errorf("creating pusher: %w", err)
+		}
+		if err := pusher.Upload(ctx, repoRef, layer); err != nil {
+			return struct{}{}, fmt.Errorf("uploading blob %s to %s: %w", desc.Digest, repoRef, err)
+		}
+		return struct{}{}, nil
+	})
+	return selected, err
 }
 
 // layerForBlob builds a registryv1.Layer for the blob from whichever source is

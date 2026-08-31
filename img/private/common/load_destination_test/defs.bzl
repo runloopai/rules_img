@@ -77,6 +77,17 @@ def _xor_failure_impl(ctx):
 
 _xor_failure_test = analysistest.make(_xor_failure_impl, expect_failure = True)
 
+def _registry_list_failure_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, "registry failover is push-only")
+    return analysistest.end(env)
+
+_registry_list_failure_test = analysistest.make(
+    _registry_list_failure_impl,
+    config_settings = {_DESTINATION_REGISTRY: "first.example.com,second.example.com"},
+    expect_failure = True,
+)
+
 def load_destination_test_suite(name):
     """Declares the probe targets, analysis tests, and a wrapping test_suite.
 
@@ -111,12 +122,20 @@ def load_destination_test_suite(name):
     )
     _xor_failure_test(name = "xor_failure_test", target_under_test = ":xor_probe", size = "small")
 
+    _load_destination_probe(
+        name = "registry_list_probe",
+        repository = "repo/app",
+        tags = ["manual"],
+    )
+    _registry_list_failure_test(name = "registry_list_failure_test", target_under_test = ":registry_list_probe", size = "small")
+
     native.test_suite(
         name = name,
         tests = [
             ":explicit_registry_test",
             ":fallback_test",
             ":legacy_test",
+            ":registry_list_failure_test",
             ":xor_failure_test",
         ],
     )

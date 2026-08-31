@@ -87,8 +87,11 @@ common --@rules_img//img/settings:stamp=disabled
 common --@rules_img//img/settings:push_strategy=eager
 
 # Default registry for image_push and image_push_spec when no explicit registry is set.
-# Useful for setting a project-wide default so individual push rules don't need to repeat it.
-common --@rules_img//img/settings:destination_registry=gcr.io
+# A comma-separated list tries registries from left to right, moving on after
+# exhausted transient/429/5xx failures or failed authentication. Image/policy
+# rejections stop immediately. Registry lists are push-only and are not accepted
+# by image_load/image_load_spec.
+common --@rules_img//img/settings:destination_registry=mirror.example.com,gcr.io
 
 # Whether `img deploy` signs images after pushing them.
 # "disabled" (default), "enabled" (signing failures fail the deploy), or

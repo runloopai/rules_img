@@ -24,6 +24,7 @@ import (
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/api"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/cas"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/compactstream"
+	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback"
 	"github.com/bazel-contrib/rules_img/img_tool/pkg/registryopts"
 )
 
@@ -209,6 +210,15 @@ func (s *Syncer) Commit(ctx context.Context, digest string, sizeBytes int64) err
 }
 
 func (s *Syncer) commitRegistryTag(ctx context.Context, op api.IndexedRegistryTagDeployOperation) error {
+	_, _, err := registryfallback.Do(ctx, op.Registry, func(registry string) (struct{}, error) {
+		attempt := op
+		attempt.Registry = registry
+		return struct{}{}, s.commitRegistryTagRegistry(ctx, attempt)
+	})
+	return err
+}
+
+func (s *Syncer) commitRegistryTagRegistry(ctx context.Context, op api.IndexedRegistryTagDeployOperation) error {
 	if len(op.Tags) == 0 {
 		return nil
 	}
@@ -258,6 +268,15 @@ func (s *Syncer) commitRegistryTag(ctx context.Context, op api.IndexedRegistryTa
 }
 
 func (s *Syncer) commitOne(ctx context.Context, pushOp api.IndexedPushDeployOperation) error {
+	_, _, err := registryfallback.Do(ctx, pushOp.Registry, func(registry string) (struct{}, error) {
+		attempt := pushOp
+		attempt.Registry = registry
+		return struct{}{}, s.commitOneRegistry(ctx, attempt)
+	})
+	return err
+}
+
+func (s *Syncer) commitOneRegistry(ctx context.Context, pushOp api.IndexedPushDeployOperation) error {
 	// Parse base reference without tag for digest-based push
 	baseReference := fmt.Sprintf("%s/%s",
 		pushOp.PushTarget.Registry,

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "registryfallback",
+    srcs = ["registryfallback.go"],
+    importpath = "github.com/bazel-contrib/rules_img/img_tool/pkg/registryfallback",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_go_containerregistry//pkg/v1/remote/transport"],
+)
+
+go_test(
+    name = "registryfallback_test",
+    srcs = ["registryfallback_test.go"],
+    embed = [":registryfallback"],
+    deps = ["@com_github_google_go_containerregistry//pkg/v1/remote/transport"],
+)
